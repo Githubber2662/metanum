@@ -97,6 +97,7 @@
         <h1>Metanum Test Interface</h1>
         
         <div class="input-section">
+            <h3>Arithmetic Operations</h3>
             <div class="input-group">
                 <label for="num1">Number 1 (Metanum format)</label>
                 <input type="text" id="num1" placeholder="e.g., 42 or [[4,3,2,1]]" value="42">
@@ -109,6 +110,23 @@
                 <label for="level">Level</label>
                 <input type="text" id="level" placeholder="e.g., 1" value="1">
             </div>
+        </div>
+        
+        <div class="input-section">
+            <h3>Hardy Hierarchy Conversion</h3>
+            <div class="input-group">
+                <label for="convertSign">Sign (1 for positive, -1 for negative)</label>
+                <input type="text" id="convertSign" placeholder="e.g., 1" value="1">
+            </div>
+            <div class="input-group">
+                <label for="convertArray">Array (Metanum format)</label>
+                <input type="text" id="convertArray" placeholder="e.g., [[4,3,2,1]]" value="[[4,3,2,1]]">
+            </div>
+            <div class="input-group">
+                <label for="convertLevel">Level</label>
+                <input type="text" id="convertLevel" placeholder="e.g., 1" value="1">
+            </div>
+            <button onclick="convertToHardy()">Convert to Hardy Expression</button>
         </div>
         
         <div class="operation-buttons">
@@ -225,6 +243,53 @@
                 displayError(error.message);
             }
         }
+        
+        function convertToHardy() {
+            try {
+                clearResult();
+                
+                const signStr = document.getElementById('convertSign').value;
+                const sign = parseInt(signStr);
+                
+                if (sign !== 1 && sign !== -1) {
+                    throw new Error('Sign must be 1 or -1');
+                }
+                
+                const arrayStr = document.getElementById('convertArray').value;
+                const array = JSON.parse(arrayStr);
+                
+                if (!Array.isArray(array)) {
+                    throw new Error('Array must be a valid array');
+                }
+                
+                const levelStr = document.getElementById('convertLevel').value;
+                const level = parseInt(levelStr);
+                
+                if (isNaN(level) || level < 0) {
+                    throw new Error('Level must be a non-negative integer');
+                }
+                
+                const metanum = new Metanum(sign, array, level);
+                const hardyExpr = metanum.toString();
+                
+                let output = `Sign: ${sign}\n`;
+                output += `Array: ${JSON.stringify(array)}\n`;
+                output += `Level: ${level}\n`;
+                output += `Hardy Hierarchy Expression: ${hardyExpr}\n`;
+                output += `Numeric value: ${metanum.toNumber()}\n`;
+                output += `Is zero: ${metanum._isZero()}\n`;
+                output += `Sign: ${metanum.sign}`;
+                
+                document.getElementById('result').textContent = output;
+            } catch (error) {
+                displayError(error.message);
+            }
+        }
+        
+        // Expose functions to global scope for inline event handlers
+        window.convertToHardy = convertToHardy;
+        window.performOperation = performOperation;
+        window.clearResult = clearResult;
         
         // Initialize with example
         window.onload = function() {

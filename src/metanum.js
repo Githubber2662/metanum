@@ -65,8 +65,8 @@ class Metanum {
     //MAX_SAFE_INTEGER=9007199254740991
     if (this.level > 0 && this.array.length > 0) {
       const firstCoeff = this.array[0][0];
-      if (firstCoeff > MAX_SAFE_INTEGER) {
-        throw new Error(`Value exceeds maximum representable value H_ε0_(${MAX_SAFE_INTEGER})`);
+      if (firstCoeff > Math.MAX_SAFE_INTEGER) {
+        throw new Error(`Value exceeds maximum representable value H_ε0_(${Math.MAX_SAFE_INTEGER})`);
       }
     }
   }
