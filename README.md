@@ -194,9 +194,9 @@ For Example:
 
 7F3 = F(3+log(7)) = EEE(10^log(7)) = EEE7 = 10^10^10^7
 
-So xEn is nothing more than ordinary scientific notation.
+So αEβ is nothing more than ordinary scientific notation.
 
-And xFn is a power tower of n 10's topped by an x (which is equivalent to Ex#n in Saibian's Hyper-E notation)
+And αFβ is a power tower of β 10's topped by an α.
 
 And again, given any specific letter (E,F,G,H,...,Z), ANY number greater than 1 has a unique representation as αΓβ (with 1≤α<β). So we can call this the Binary-Γ-Canonical Form of α.
 
