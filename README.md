@@ -136,13 +136,13 @@ The idea here is to extend the PsiCubed's letter notation to much larger numbers
 
 Our final notation will look like this:
 
-<symbol><letter><number>
+[symbol][letter][number]
 
-where <symbol> can be one of the following: empty,!,@,#,$,%,&,……
+where [symbol] can be one of the following: empty,!,@,#,$,%,&,……
 
-where <letter> can be one of the following: E,F,G,H,……,Aa,Ab,Ac,……,Ba,Bb,……,Aaa,……
+where [letter] can be one of the following: E,F,G,H,……,Aa,Ab,Ac,……,Ba,Bb,……,Aaa,……
 
-and <number> can be any positive real number (nonintegers included).
+and [number] can be any positive real number (nonintegers included).
 
 #### The First Levels: A Continuous version of Knuth Arrows
 
@@ -190,7 +190,7 @@ To recreate ordinary scientific notation, we'll define a binary version of the l
 
 Let Γ be one of the letters E,F,G,H,...,Z Let β be a nonnegative integer and α be a real number between 1 and 10. Then:
 
-Γβ = Γ(β+log(α))
+αΓβ = Γ(β+log(α))
 
 For Example:
 

@@ -1,8 +1,8 @@
 class Metanum {
   constructor(sign, array, level = 1) {
     this.sign = this._validateSign(sign);
-    this.array = this._validateAndNormalizeArray(array);
     this.level = this._validateLevel(level);
+    this.array = this._validateAndNormalizeArray(array, this.level);
     this._validateConsistency();
   }
 
@@ -21,43 +21,57 @@ class Metanum {
     return numLevel;
   }
 
-  _validateAndNormalizeArray(array) {
-    if (!Array.isArray(array)) {
-      throw new Error('Array must be an array');
-    }
-    if (array.length === 0) {
-      return [[0]];
-    }
-    return this._deepNormalizeArray(array);
-  }
-
-  _deepNormalizeArray(array) {
-    const result = [];
-    for (let i = 0; i < array.length; i++) {
-      const subArray = array[i];
-      if (!Array.isArray(subArray)) {
-        throw new Error(`Array[${i}] must be an array`);
+  _validateAndNormalizeArray(array, level) {
+    if (level === 0) {
+      const num = Number(array);
+      if (!Number.isInteger(num) || num < 0) {
+        throw new Error('Level 0 array must be a non-negative integer');
       }
-      if (subArray.length === 0) {
-        result.push([0]);
-      } else {
-        const normalized = subArray.map(val => {
+      return [num];
+    } else if (level === 1) {
+      if (!Array.isArray(array)) {
+        throw new Error('Level 1 array must be an array');
+      }
+      if (array.length === 0) {
+        return [0];
+      }
+      return array.map(val => {
+        const num = Number(val);
+        if (!Number.isInteger(num) || num < 0) {
+          throw new Error('Level 1 array elements must be non-negative integers');
+        }
+        return num;
+      });
+    } else {
+      if (!Array.isArray(array)) {
+        throw new Error('Level >= 2 array must be a 2-dimensional array');
+      }
+      if (array.length === 0) {
+        return [[0]];
+      }
+      return array.map(subArray => {
+        if (!Array.isArray(subArray)) {
+          throw new Error('Level >= 2 array must contain only arrays');
+        }
+        if (subArray.length === 0) {
+          return [0];
+        }
+        return subArray.map(val => {
           const num = Number(val);
           if (!Number.isInteger(num) || num < 0) {
-            throw new Error(`Array elements must be non-negative integers`);
+            throw new Error('Level >= 2 array elements must be non-negative integers');
           }
           return num;
         });
-        result.push(normalized);
-      }
+      });
     }
-    return result;
+  }
+
+  _deepNormalizeArray(array) {
+    return array;
   }
 
   _validateConsistency() {
-    if (!this._isZero() && this.level === 0) {
-      throw new Error('Non-zero values cannot have level 0');
-    }
     this._checkMaxValue();
   }
 
@@ -72,17 +86,23 @@ class Metanum {
   }
 
   _isZero() {
-    return this.array.length === 1 && 
-           this.array[0].length === 1 && 
-           this.array[0][0] === 0;
+    if (this.level === 0) {
+      return this.array[0] === 0;
+    } else if (this.level === 1) {
+      return this.array.length === 1 && this.array[0] === 0;
+    } else {
+      return this.array.length === 1 && 
+             this.array[0].length === 1 && 
+             this.array[0][0] === 0;
+    }
   }
 
   static zero() {
-    return new Metanum(1, [[0]], 0);
+    return new Metanum(1, 0, 0);
   }
 
   static one() {
-    return new Metanum(1, [[1]], 1);
+    return new Metanum(1, [1], 1);
   }
 
   clone() {
@@ -91,7 +111,11 @@ class Metanum {
   }
 
   _deepCloneArray(array) {
-    return array.map(subArray => [...subArray]);
+    if (Array.isArray(array) && array.length > 0 && Array.isArray(array[0])) {
+      return array.map(subArray => [...subArray]);
+    } else {
+      return [...array];
+    }
   }
 
   _trimTrailingZeros(array) {
@@ -117,9 +141,15 @@ class Metanum {
       return len1 - len2;
     }
     for (let i = len1 - 1; i >= 0; i--) {
-      const cmp = this._compareSubArrays(arr1[i], arr2[i]);
-      if (cmp !== 0) {
-        return cmp;
+      if (Array.isArray(arr1[i]) && Array.isArray(arr2[i])) {
+        const cmp = this._compareSubArrays(arr1[i], arr2[i]);
+        if (cmp !== 0) {
+          return cmp;
+        }
+      } else {
+        if (arr1[i] !== arr2[i]) {
+          return arr1[i] - arr2[i];
+        }
       }
     }
     return 0;
@@ -261,12 +291,15 @@ class Metanum {
       return '0';
     }
     const signStr = this.sign === -1 ? '-' : '';
+    if (this.level === 0) {
+      return `${signStr}${this.array[0]}`;
+    }
     return `${signStr}H_${this._arrayToOrdinal()}_(10)`;
   }
 
   _arrayToOrdinal() {
     if (this.level === 0) {
-      return '0';
+      return this.array[0].toString();
     }
     if (this.level === 1) {
       return this._level1ToString();
@@ -276,18 +309,20 @@ class Metanum {
 
   _level1ToString() {
     const parts = [];
-    const arr = this.array[0];
+    const arr = this.array;
     for (let i = arr.length - 1; i >= 1; i--) {
       if (arr[i] > 0) {
-        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        const letter = letters[Math.min(i - 1, 25)];
-        parts.push(`${letter}^${arr[i]}`);
+        if (i === 1) {
+          parts.push(`ω*${arr[i]}`);
+        } else {
+          parts.push(`ω^${i}*${arr[i]}`);
+        }
       }
     }
     if (arr[0] > 0) {
       parts.push(arr[0].toString());
     }
-    return parts.join(' ') || '0';
+    return parts.join('+') || '0';
   }
 
   _levelNToString(n) {
@@ -340,13 +375,15 @@ class Metanum {
     if (this._isZero()) {
       return 0;
     }
-    if (this.level === 1 && this.array.length === 1) {
-      const arr = this.array[0];
-      let value = arr[0];
-      for (let i = 1; i < arr.length; i++) {
-        if (arr[i] > 0) {
+    if (this.level === 0) {
+      return this.sign * this.array[0];
+    }
+    if (this.level === 1) {
+      let value = this.array[0];
+      for (let i = 1; i < this.array.length; i++) {
+        if (this.array[i] > 0) {
           const exponent = Math.pow(10, i);
-          value += arr[i] * exponent;
+          value += this.array[i] * exponent;
         }
       }
       return this.sign * value;
@@ -412,11 +449,17 @@ class Metanum {
       return false;
     }
     for (let i = 0; i < arr1.length; i++) {
-      if (arr1[i].length !== arr2[i].length) {
-        return false;
-      }
-      for (let j = 0; j < arr1[i].length; j++) {
-        if (arr1[i][j] !== arr2[i][j]) {
+      if (Array.isArray(arr1[i]) && Array.isArray(arr2[i])) {
+        if (arr1[i].length !== arr2[i].length) {
+          return false;
+        }
+        for (let j = 0; j < arr1[i].length; j++) {
+          if (arr1[i][j] !== arr2[i][j]) {
+            return false;
+          }
+        }
+      } else {
+        if (arr1[i] !== arr2[i]) {
           return false;
         }
       }
@@ -432,8 +475,8 @@ class Metanum {
       return Metanum.zero();
     }
     const sign = num < 0 ? -1 : 1;
-    const absNum = Math.abs(num);
-    const array = [[Math.floor(absNum)]];
+    const absNum = Math.floor(Math.abs(num));
+    const array = [absNum];
     return new Metanum(sign, array, 1);
   }
 
@@ -503,15 +546,20 @@ class Metanum {
       return Metanum.zero();
     }
     const resultSign = this.sign * other.sign;
+    if (this.level === 0 && other.level === 0) {
+      const result = this.array[0] * other.array[0];
+      return new Metanum(resultSign, result, 0);
+    }
     if (this.level === 1 && other.level === 1) {
-      const resultArray = this._multiplyArrays(this.array, other.array);
-      return new Metanum(resultSign, resultArray, 1);
+      const num1 = this.toNumber();
+      const num2 = other.toNumber();
+      const result = num1 * num2;
+      return Metanum.fromNumber(result);
     }
     if (this.level !== other.level) {
       throw new Error('Cannot multiply Metanums with different levels');
     }
-    const resultArray = this._multiplyArrays(this.array, other.array);
-    return new Metanum(resultSign, resultArray, this.level);
+    throw new Error('Multiplication not implemented for this level');
   }
 
   divide(other) {
@@ -525,10 +573,14 @@ class Metanum {
       return Metanum.zero();
     }
     const resultSign = this.sign * other.sign;
+    if (this.level === 0 && other.level === 0) {
+      const result = Math.floor(this.array[0] / other.array[0]);
+      return new Metanum(resultSign, result, 0);
+    }
     if (this.level === 1 && other.level === 1) {
       const thisNum = this.toNumber();
       const otherNum = other.toNumber();
-      const result = thisNum / otherNum;
+      const result = Math.floor(thisNum / otherNum);
       return Metanum.fromNumber(result);
     }
     throw new Error('Division not fully implemented for this level');

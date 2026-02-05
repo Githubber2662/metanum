@@ -227,9 +227,9 @@ function testEdgeCases() {
 function testComplexArrays() {
   console.log('\n=== Testing Complex Array Structures ===');
   
-  const complex1 = new Metanum(1, [[4, 3, 2, 1]], 1);
+  const complex1 = new Metanum(1, [4, 3, 2, 1], 1);
   assert(complex1.level === 1, 'Complex level 1');
-  assert(complex1.array[0].length === 4, 'Array length');
+  assert(complex1.array.length === 4, 'Array length');
   
   const complex2 = new Metanum(1, [[5, 6, 7], [6, 7, 8, 9], [4, 5], [9]], 2);
   assert(complex2.level === 2, 'Complex level 2');
