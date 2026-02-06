@@ -14,17 +14,21 @@ var metanumError = "[MetanumError] ",
     MAX_SAFE_INTEGER = 9007199254740991,
 
     P={},
-    R={};
+    Q={};
 
 // Constants
-R.ZERO=0;
-R.ONE=1;
-R.E=Math.E;
-R.PI=Math.PI;
-R.MAX_SAFE_INTEGER=MAX_SAFE_INTEGER;
-R.NaN=Number.NaN;
-R.NEGATIVE_INFINITY=Number.NEGATIVE_INFINITY;
-R.POSITIVE_INFINITY=Number.POSITIVE_INFINITY;
+Q.ZERO=0;
+Q.ONE=1;
+Q.E=Math.E;
+Q.PI=Math.PI;
+Q.MAX_SAFE_INTEGER=MAX_SAFE_INTEGER;
+Q.NaN=Number.NaN;
+Q.NEGATIVE_INFINITY=Number.NEGATIVE_INFINITY;
+Q.POSITIVE_INFINITY=Number.POSITIVE_INFINITY;
+/* Tritri, = 3↑↑↑3 = power tower with height 7625597484987 base 3. */
+Q.TRITRI = new Metanum(1, 1, 3638334640023.7783, [7625597484984, 1]);
+/* The Graham's Number, = G^64(4) */
+Q.GRAHAMS_NUMBER = new Metanum(1, 2, 3638334640023.7783, [7625597484984, 1, 63], [[1], [3], [0, 1]]);
 
 // Prototype methods
 
@@ -566,7 +570,7 @@ function zero() {
 }
 
 function one() {
-  return new Metanum(1, 1, 10, [1]);
+  return new Metanum(1, 1, 0);
 }
 
 function fromNumber(num) {
@@ -716,9 +720,9 @@ Metanum.toPower = Metanum.pow = toPower;
 Metanum.logarithm = Metanum.logBase = Metanum.log = logarithm;
 
 // Assign constants
-for (var prop in R) {
-  if (R.hasOwnProperty(prop)) {
-    Metanum[prop] = R[prop];
+for (var prop in Q) {
+  if (Q.hasOwnProperty(prop)) {
+    Metanum[prop] = Q[prop];
   }
 }
 
