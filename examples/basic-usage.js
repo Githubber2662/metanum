@@ -58,7 +58,7 @@ console.log(`   Original: ${neg.toNumber()}, Absolute: ${neg.abs().toNumber()}`)
 console.log('\n7. Complex array structures (Hardy hierarchy):');
 const complex1 = new Metanum(1, 1, 10, [1, 2, 3, 4]);
 console.log(`   Level 1: ${complex1.toString()}`);
-console.log(`   Represents: H_ω^3*4+H_ω^2*3+H_ω^1*2+H_ω^0*1_(10)`);
+console.log(`   Represents: H_ω^3*4+ω^2*3+ω^1*2+ω^0*1_(10)`);
 
 const complex2 = new Metanum(1, 2, 10, [1, 2, 3, 4], [[5, 6, 7], [6, 7, 8, 9], [4, 5], [9]]);
 console.log(`   Level 2: ${complex2.toString()}`);

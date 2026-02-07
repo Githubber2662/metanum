@@ -40,6 +40,13 @@
             border-radius: 4px;
             font-size: 14px;
         }
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+        .input-row .input-group {
+            flex: 1;
+        }
         .operation-buttons {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -97,38 +104,65 @@
         <h1>Metanum Test Interface</h1>
         
         <div class="input-section">
-            <h3>Arithmetic Operations</h3>
-            <div class="input-group">
-                <label for="num1">Number 1 (Metanum format)</label>
-                <input type="text" id="num1" placeholder="e.g., 42 or [[4,3,2,1]]" value="42">
+            <h3>Metanum Structure Input - Number 1</h3>
+            <div class="input-row">
+                <div class="input-group" style="flex: 1;">
+                    <label for="sign1">Sign (1/-1)</label>
+                    <input type="text" id="sign1" placeholder="e.g., 1" value="1">
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label for="layer1">Layer (0-3)</label>
+                    <input type="text" id="layer1" placeholder="e.g., 1" value="1">
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label for="array1">Array (x)</label>
+                    <input type="text" id="array1" placeholder="e.g., 10" value="10">
+                </div>
             </div>
             <div class="input-group">
-                <label for="num2">Number 2 (Metanum format)</label>
-                <input type="text" id="num2" placeholder="e.g., 27 or [[2,1]]" value="27">
+                <label for="brrby1">Brrby (lowest to highest)</label>
+                <input type="text" id="brrby1" placeholder="e.g., [1,2,3,4]" value="">
             </div>
             <div class="input-group">
-                <label for="level">Level</label>
-                <input type="text" id="level" placeholder="e.g., 1" value="1">
+                <label for="crrcy1">Crrcy (2D array for layer>=2)</label>
+                <input type="text" id="crrcy1" placeholder="e.g., [[5,6,7],[4,5]]" value="">
+            </div>
+            <div class="input-group">
+                <label for="drrdy1">Drrdy (3D array for layer>=3)</label>
+                <input type="text" id="drrdy1" placeholder="e.g., [[[2,4,6,7,8]]]" value="">
             </div>
         </div>
         
         <div class="input-section">
-            <h3>Hardy Hierarchy Conversion</h3>
-            <div class="input-group">
-                <label for="convertSign">Sign (1 for positive, -1 for negative)</label>
-                <input type="text" id="convertSign" placeholder="e.g., 1" value="1">
+            <h3>Metanum Structure Input - Number 2</h3>
+            <div class="input-row">
+                <div class="input-group" style="flex: 1;">
+                    <label for="sign2">Sign (1/-1)</label>
+                    <input type="text" id="sign2" placeholder="e.g., 1" value="1">
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label for="layer2">Layer (0-3)</label>
+                    <input type="text" id="layer2" placeholder="e.g., 1" value="1">
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label for="array2">Array (x)</label>
+                    <input type="text" id="array2" placeholder="e.g., 10" value="10">
+                </div>
             </div>
             <div class="input-group">
-                <label for="convertArray">Array (Metanum format)</label>
-                <input type="text" id="convertArray" placeholder="e.g., [[4,3,2,1]]" value="[[4,3,2,1]]">
+                <label for="brrby2">Brrby (lowest to highest)</label>
+                <input type="text" id="brrby2" placeholder="e.g., [1,2,3,4]" value="">
             </div>
             <div class="input-group">
-                <label for="convertLevel">Level</label>
-                <input type="text" id="convertLevel" placeholder="e.g., 1" value="1">
+                <label for="crrcy2">Crrcy (2D array for layer>=2)</label>
+                <input type="text" id="crrcy2" placeholder="e.g., [[5,6,7],[4,5]]" value="">
             </div>
-            <button onclick="convertToHardy()">Convert to Hardy Expression</button>
+            <div class="input-group">
+                <label for="drrdy2">Drrdy (3D array for layer>=3)</label>
+                <input type="text" id="drrdy2" placeholder="e.g., [[[2,4,6,7,8]]]" value="">
+            </div>
         </div>
-        
+
         <div class="operation-buttons">
             <button onclick="performOperation('add')">Add (+)</button>
             <button onclick="performOperation('subtract')">Subtract (-)</button>
@@ -137,6 +171,37 @@
             <button onclick="performOperation('pow')">Power (^)</button>
             <button onclick="performOperation('log')">Logarithm</button>
             <button onclick="clearResult()">Clear</button>
+        </div>
+        
+        <div class="input-section">
+            <h3>Hardy Hierarchy Conversion</h3>
+            <div class="input-row">
+                <div class="input-group" style="flex: 1;">
+                    <label for="convertSign">Sign (1/-1)</label>
+                    <input type="text" id="convertSign" placeholder="" value="1">
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label for="convertLayer">Layer (0-3)</label>
+                    <input type="text" id="convertLayer" placeholder="" value="1">
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label for="convertArray">Array (x)</label>
+                    <input type="text" id="convertArray" placeholder="" value="10">
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="convertBrrby">Brrby (lowest to highest)</label>
+                <input type="text" id="convertBrrby" placeholder="" value="[1,2,3,4]">
+            </div>
+            <div class="input-group">
+                <label for="convertCrrcy">Crrcy (2D array for layer>=2)</label>
+                <input type="text" id="convertCrrcy" placeholder="" value="">
+            </div>
+            <div class="input-group">
+                <label for="convertDrrdy">Drrdy (3D array for layer>=3)</label>
+                <input type="text" id="convertDrrdy" placeholder="" value="">
+            </div>
+            <button onclick="convertToHardy()">Convert to Hardy Expression</button>
         </div>
         
         <div class="output-section">
@@ -176,79 +241,66 @@
             document.getElementById('result').textContent = '';
         }
         
-        function parseInput(input) {
-    try {
-        if (/^\d+$/.test(input)) {
-            return Metanum.fromNumber(parseInt(input));
-        } else if (input.startsWith('[') && input.endsWith(']')) {
-            const array = JSON.parse(input);
-            const level = parseInt(document.getElementById('level').value) || 1;
+        function parseMetanumInput(num) {
+            const sign = parseInt(document.getElementById('sign' + num).value) || 1;
+            const layer = parseInt(document.getElementById('layer' + num).value) || 0;
+            const array = parseFloat(document.getElementById('array' + num).value) || 10;
+            const brrbyStr = document.getElementById('brrby' + num).value.trim();
+            const crrcyStr = document.getElementById('crrcy' + num).value.trim();
+            const drrdyStr = document.getElementById('drrdy' + num).value.trim();
             
-            if (!Array.isArray(array)) {
-                throw new Error('Input must be a valid array');
+            let brrby = [0], crrcy = [[0]], drrdy = [[[0]]];
+            
+            if (brrbyStr.startsWith('[') && brrbyStr.endsWith(']')) {
+                try {
+                    brrby = JSON.parse(brrbyStr);
+                    if (!Array.isArray(brrby)) brrby = [0];
+                } catch (e) {}
             }
             
-            let sign = 1;
-            let arr = array;
-            let brrby, crrcy, drrdy;
-            
-            if (level === 1) {
-                brrby = Array.isArray(array[0]) ? array[0] : array;
-                crrcy = [[0]];
-                drrdy = [[[0]]];
-            } else if (level === 2) {
-                if (Array.isArray(array[0])) {
-                    if (Array.isArray(array[0][0])) {
-                        brrby = array[0][0];
-                        crrcy = array;
-                    } else {
-                        brrby = array[0];
-                        crrcy = array.slice(1);
-                    }
-                } else {
-                    brrby = array;
+            if (layer >= 2 && crrcyStr.startsWith('[') && crrcyStr.endsWith(']')) {
+                try {
+                    crrcy = JSON.parse(crrcyStr);
+                    if (!Array.isArray(crrcy[0])) crrcy = [[0]];
+                } catch (e) {
                     crrcy = [[0]];
                 }
-                drrdy = [[[0]]];
             } else {
-                if (Array.isArray(array[0]) && Array.isArray(array[0][0]) && Array.isArray(array[0][0][0])) {
-                    brrby = array[0][0][0];
-                    crrcy = array[0][0];
-                    drrdy = array;
-                } else if (Array.isArray(array[0]) && Array.isArray(array[0][0])) {
-                    brrby = array[0][0];
-                    crrcy = array[0];
-                    drrdy = array.slice(1);
-                } else if (Array.isArray(array[0])) {
-                    brrby = array[0];
-                    crrcy = array.slice(1);
-                    drrdy = [[[0]]];
-                } else {
-                    brrby = array;
-                    crrcy = [[0]];
-                    drrdy = [[[0]]];
-                }
+                crrcy = [[0]];
             }
             
-            return new Metanum(sign, level, 10, brrby, crrcy, drrdy);
-        } else {
-            throw new Error('Invalid input format');
+            if (layer >= 3 && drrdyStr.startsWith('[') && drrdyStr.endsWith(']')) {
+                try {
+                    drrdy = JSON.parse(drrdyStr);
+                    if (!Array.isArray(drrdy[0]) || !Array.isArray(drrdy[0][0])) drrdy = [[[0]]];
+                } catch (e) {
+                    drrdy = [[[0]]];
+                }
+            } else {
+                drrdy = [[[0]]];
+            }
+            
+            if (layer === 0) {
+                return new Metanum(sign, 0, array);
+            }
+            
+            if (layer === 1) {
+                return new Metanum(sign, 1, array, brrby, [[0]], [[[0]]]);
+            }
+            
+            if (layer === 2) {
+                return new Metanum(sign, 2, array, brrby, crrcy, [[[0]]]);
+            }
+            
+            return new Metanum(sign, layer, array, brrby, crrcy, drrdy);
         }
-    } catch (error) {
-        throw new Error('Failed to parse input: ' + error.message);
-    }
-}
         
         function performOperation(operation) {
             try {
                 clearResult();
                 
-                const num1Str = document.getElementById('num1').value;
-                const num2Str = document.getElementById('num2').value;
-                const level = parseInt(document.getElementById('level').value) || 1;
-                
-                const num1 = parseInput(num1Str);
-                const num2 = parseInput(num2Str);
+                const num1 = parseMetanumInput('1');
+                const num2 = parseMetanumInput('2');
                 
                 let result;
                 switch (operation) {
@@ -278,12 +330,9 @@
                 const resultNum = result.toNumber();
                 
                 let output = `Operation: ${operation}\n`;
-                output += `Number 1: ${num1.toString()} (${num1.toNumber()})\n`;
-                output += `Number 2: ${num2.toString()} (${num2.toNumber()})\n`;
+                output += `Number 1: ${num1.toString()}\n`;
+                output += `Number 2: ${num2.toString()}\n`;
                 output += `Result: ${resultStr}\n`;
-                if (Number.isFinite(resultNum)) {
-                    output += `Numeric value: ${resultNum}\n`;
-                }
                 output += `Is zero: ${result._isZero()}\n`;
                 output += `Sign: ${result.sign}`;
                 
@@ -297,37 +346,63 @@
             try {
                 clearResult();
                 
-                const signStr = document.getElementById('convertSign').value;
-                const sign = parseInt(signStr);
+                const sign = parseInt(document.getElementById('convertSign').value) || 1;
+                const layer = parseInt(document.getElementById('convertLayer').value) || 0;
+                const array = parseFloat(document.getElementById('convertArray').value) || 10;
+                const brrbyStr = document.getElementById('convertBrrby').value.trim();
+                const crrcyStr = document.getElementById('convertCrrcy').value.trim();
+                const drrdyStr = document.getElementById('convertDrrdy').value.trim();
                 
-                if (sign !== 1 && sign !== -1) {
-                    throw new Error('Sign must be 1 or -1');
+                let brrby = [0], crrcy = [[0]], drrdy = [[[0]]];
+                
+                if (brrbyStr.startsWith('[') && brrbyStr.endsWith(']')) {
+                    try {
+                        brrby = JSON.parse(brrbyStr);
+                        if (!Array.isArray(brrby)) brrby = [0];
+                    } catch (e) {}
                 }
                 
-                const arrayStr = document.getElementById('convertArray').value;
-                const array = JSON.parse(arrayStr);
-                
-                if (!Array.isArray(array)) {
-                    throw new Error('Array must be a valid array');
+                if (layer >= 2 && crrcyStr.startsWith('[') && crrcyStr.endsWith(']')) {
+                    try {
+                        crrcy = JSON.parse(crrcyStr);
+                        if (!Array.isArray(crrcy[0])) crrcy = [[0]];
+                    } catch (e) {
+                        crrcy = [[0]];
+                    }
                 }
                 
-                const levelStr = document.getElementById('convertLevel').value;
-                const level = parseInt(levelStr);
-                
-                if (isNaN(level) || level < 0) {
-                    throw new Error('Level must be a non-negative integer');
+                if (layer >= 3 && drrdyStr.startsWith('[') && drrdyStr.endsWith(']')) {
+                    try {
+                        drrdy = JSON.parse(drrdyStr);
+                        if (!Array.isArray(drrdy[0]) || !Array.isArray(drrdy[0][0])) drrdy = [[[0]]];
+                    } catch (e) {
+                        drrdy = [[[0]]];
+                    }
                 }
                 
-                const metanum = new Metanum(sign, array, level);
+                let metanum;
+                
+                if (layer === 0) {
+                    metanum = new Metanum(sign, 0, array);
+                } else if (layer === 1) {
+                    metanum = new Metanum(sign, 1, array, brrby, [[0]], [[[0]]]);
+                } else if (layer === 2) {
+                    metanum = new Metanum(sign, 2, array, brrby, crrcy, [[[0]]]);
+                } else {
+                    metanum = new Metanum(sign, layer, array, brrby, crrcy, drrdy);
+                }
+                
                 const hardyExpr = metanum.toString();
                 
                 let output = `Sign: ${sign}\n`;
-                output += `Array: ${JSON.stringify(array)}\n`;
-                output += `Level: ${level}\n`;
+                output += `Layer: ${layer}\n`;
+                output += `Array: ${array}\n`;
+                output += `Brrby: ${JSON.stringify(brrby)}\n`;
+                if (layer >= 2) output += `Crrcy: ${JSON.stringify(crrcy)}\n`;
+                if (layer >= 3) output += `Drrdy: ${JSON.stringify(drrdy)}\n`;
                 output += `Hardy Hierarchy Expression: ${hardyExpr}\n`;
                 output += `Numeric value: ${metanum.toNumber()}\n`;
-                output += `Is zero: ${metanum._isZero()}\n`;
-                output += `Sign: ${metanum.sign}`;
+                output += `Is zero: ${metanum._isZero()}`;
                 
                 document.getElementById('result').textContent = output;
             } catch (error) {

@@ -16,7 +16,7 @@ function testBasicCreation() {
   
   const one = Metanum.one();
   assert(one.toNumber() === 1, 'One creation');
-  assert(one.toString() === 'H_1_(10)', 'One string representation');
+  assert(one.toString() === '1', 'One string representation');
   
   const num = Metanum.fromNumber(42);
   assert(num.toNumber() === 42, 'Number creation');
@@ -68,10 +68,10 @@ function testAddition() {
   const sum3 = a.add(neg);
   assert(sum3.toNumber() === 5, '15 + (-10) = 5 (layer=0 addition)');
   
-  const complex1 = new Metanum(1, 1, 10, [5, 0]);
-  const complex2 = new Metanum(1, 1, 10, [3, 0]);
+  const complex1 = new Metanum(1, 1, 10, [3, 5]);
+  const complex2 = new Metanum(1, 1, 10, [3, 3]);
   const sumComplex = complex1.add(complex2);
-  assert(sumComplex.toString() === 'H_ω*5_(10)', 'layer>=1 + layer>=1 returns larger');
+  assert(sumComplex.toString() === 'H_ω*5+3_(10)', 'layer>=1 + layer>=1 returns larger');
 }
 
 function testSubtraction() {
@@ -232,12 +232,12 @@ function testEdgeCases() {
 function testComplexArrays() {
   console.log('\n=== Testing Complex Array Structures ===');
   
-  const complex1 = new Metanum(1, 1, 10, [4, 3, 2, 1]);
+  const complex1 = new Metanum(1, 1, 10, [1, 2, 3, 4]);
   assert(complex1.layer === 1, 'Complex level 1');
   assert(complex1.brrby.length === 4, 'Brrby length');
   assert(complex1.brrby[3] === 4, 'Highest coefficient');
   
-  const complex2 = new Metanum(1, 2, 10, [4, 3, 2, 1], [[5, 6, 7], [6, 7, 8, 9], [4, 5], [9]]);
+  const complex2 = new Metanum(1, 2, 10, [1, 2, 3, 4], [[5, 6, 7], [6, 7, 8, 9], [4, 5], [9]]);
   assert(complex2.layer === 2, 'Complex level 2');
   assert(complex2.brrby.length === 4, 'Brrby length');
   assert(complex2.crrcy.length === 4, 'Outer crrcy length');

@@ -1,79 +1,78 @@
 // Author: dlsdl 0.2.0
 // New Metanum data structure with Cantor normal form
-// Code structure from ExpantaNum.js
-
-// -- EDITABLE DEFAULTS --
-var MetanumDefaults = {
-  maxOps: 1e3,
-  serializeMode: 0,
-  debug: 0
-};
-// -- END OF EDITABLE DEFAULTS --
+// Code structure from ExpantaNum.js and PowiainaNum.js
 
 var metanumError = "[MetanumError] ",
     MAX_SAFE_INTEGER = 9007199254740991,
 
-    P={},
-    Q={};
+    // Prototype object
+    P = {},
+
+    // Static object
+    Q = {},
+
+    // Constants object
+    R = {};
 
 // Constants
-Q.ZERO=0;
-Q.ONE=1;
-Q.E=Math.E;
-Q.PI=Math.PI;
-Q.MAX_SAFE_INTEGER=MAX_SAFE_INTEGER;
-Q.NaN=Number.NaN;
-Q.NEGATIVE_INFINITY=Number.NEGATIVE_INFINITY;
-Q.POSITIVE_INFINITY=Number.POSITIVE_INFINITY;
+R.ZERO = 0;
+R.ONE = 1;
+R.E = Math.E;
+R.PI = Math.PI;
+R.MAX_SAFE_INTEGER = MAX_SAFE_INTEGER;
+R.NaN = Number.NaN;
+R.NEGATIVE_INFINITY = Number.NEGATIVE_INFINITY;
+R.POSITIVE_INFINITY = Number.POSITIVE_INFINITY;
 /* Tritri, = 3↑↑↑3 = power tower with height 7625597484987 base 3. */
-Q.TRITRI = new Metanum(1, 1, 3638334640023.7783, [7625597484984, 1]);
+R.TRITRI = "1, 1, 3638334640023.7783, [7625597484984, 1]";
 /* The Graham's Number, = G^64(4) */
-Q.GRAHAMS_NUMBER = new Metanum(1, 2, 3638334640023.7783, [7625597484984, 1, 63], [[1], [3], [0, 1]]);
+R.GRAHAMS_NUMBER = "1, 2, 3638334640023.7783, [7625597484984, 1, 63], [[1], [3], [0, 1]]";
+/* QqQe308 = H_ω^(ω17+16)+ω^(ω17+4)(308) */
+R.QQQE308 = "1, 2, 308, [1, 1], [[4, 17], [16, 17]]";
+R.MAX_METANUM_VALUE = "1, " + MAX_SAFE_INTEGER + ", " + MAX_SAFE_INTEGER + ", [" + MAX_SAFE_INTEGER + "], [[ " + MAX_SAFE_INTEGER + " ]], [[[[" + MAX_SAFE_INTEGER + "]]]]";
 
-// Prototype methods
 
-P._validateSign=function(sign) {
+// Validation functions
+function validateSign(sign) {
   if (sign !== 1 && sign !== -1) {
     throw new Error('Sign must be 1 or -1');
   }
   return sign;
-};
+}
 
-P._validateLayer=function(layer) {
+function validateLayer(layer) {
   const numLayer = Number(layer);
   if (!Number.isInteger(numLayer) || numLayer < 0) {
     throw new Error('Layer must be a non-negative integer');
   }
   return numLayer;
-};
+}
 
-P._validateArray=function(array) {
+function validateArray(array) {
   const num = Number(array);
   if (num < 0) {
     throw new Error('Array must be a non-negative number');
   }
   return num;
-};
+}
 
-P._validateBrrby=function(brrby) {
+function validateBrrby(brrby) {
   if (!Array.isArray(brrby)) {
     throw new Error('Brrby must be an array');
   }
   if (brrby.length === 0) {
     return [0];
   }
-  const result = brrby.map(val => {
+  return brrby.map(val => {
     const num = Number(val);
     if (!Number.isInteger(num) || num < 0) {
       throw new Error('Brrby elements must be non-negative integers');
     }
     return num;
   });
-  // Reverse to match expected behavior (lowest to highest index)
-  return result.reverse();
-};
+}
 
-P._validateCrrcy=function(crrcy) {
+function validateCrrcy(crrcy) {
   if (!Array.isArray(crrcy)) {
     throw new Error('Crrcy must be a 2-dimensional array');
   }
@@ -95,39 +94,61 @@ P._validateCrrcy=function(crrcy) {
       return num;
     });
   });
-};
+}
 
-P._validateDrrdy=function(drrdy) {
+function validateDrrdy(drrdy) {
   if (!Array.isArray(drrdy)) {
-    throw new Error('Drrdy must be a 3-dimensional array');
+    throw new Error('Drrdy must be a 4-dimensional array');
   }
   if (drrdy.length === 0) {
-    return [[[0]]];
+    return [[[[0]]]];
   }
-  return drrdy.map(twoDArray => {
-    if (!Array.isArray(twoDArray)) {
-      throw new Error('Drrdy elements must be 2D arrays');
+  return drrdy.map(tier => {
+    if (!Array.isArray(tier)) {
+      throw new Error('Drrdy elements must be 3D arrays');
     }
-    if (twoDArray.length === 0) {
-      return [[0]];
+    if (tier.length === 0) {
+      return [[[0]]];
     }
-    return twoDArray.map(subArray => {
-      if (!Array.isArray(subArray)) {
-        throw new Error('Drrdy sub-elements must be arrays');
+    return tier.map(twoD => {
+      if (!Array.isArray(twoD)) {
+        throw new Error('Drrdy 3D elements must be 2D arrays');
       }
-      if (subArray.length === 0) {
-        return [0];
+      if (twoD.length === 0) {
+        return [[0]];
       }
-      return subArray.map(val => {
-        const num = Number(val);
-        if (!Number.isInteger(num) || num < 0) {
-          throw new Error('Drrdy elements must be non-negative integers');
+      return twoD.map(row => {
+        if (!Array.isArray(row)) {
+          throw new Error('Drrdy 2D elements must be arrays');
         }
-        return num;
+        if (row.length === 0) {
+          return [0];
+        }
+        return row.map(val => {
+          const num = Number(val);
+          if (!Number.isInteger(num) || num < 0) {
+            throw new Error('Drrdy elements must be non-negative integers');
+          }
+          return num;
+        });
       });
     });
   });
-};
+}
+
+// Prototype methods
+
+P._validateSign=validateSign;
+
+P._validateLayer=validateLayer;
+
+P._validateArray=validateArray;
+
+P._validateBrrby=validateBrrby;
+
+P._validateCrrcy=validateCrrcy;
+
+P._validateDrrdy=validateDrrdy;
 
 P._isZero=function() {
 //0=Metanum(1,0,0) or Metanum(-1,0,0)
@@ -135,17 +156,14 @@ P._isZero=function() {
 };
 
 P.clone=function() {
-  const newBrrby = [...this.brrby];
-  const newCrrcy = this.layer >= 2 ? this.crrcy.map(sub => [...sub]) : [[0]];
-  const newDrrdy = this.layer >= 3 ? this.drrdy.map(twoD => twoD.map(sub => [...sub])) : [[[0]]];
-  return new Metanum(
-    this.sign,
-    this.layer,
-    this.array,
-    newBrrby,
-    newCrrcy,
-    newDrrdy
-  );
+  const cloned = new Metanum(1, 0, 0);
+  cloned.sign = this.sign;
+  cloned.layer = this.layer;
+  cloned.array = this.array;
+  cloned.brrby = [...this.brrby];
+  cloned.crrcy = this.layer >= 2 ? this.crrcy.map(sub => [...sub]) : [[0]];
+  cloned.drrdy = this.layer >= 3 ? this.drrdy.map(twoD => twoD.map(sub => [...sub])) : [[[0]]];
+  return cloned;
 };
 
 P._deepCloneArray=function(arr) {
@@ -161,19 +179,12 @@ P._sumBrrby=function(brrby) {
 };
 
 P._sumCrrcyRow=function(row) {
-  let sum = 0;
-  for (let i = 0; i < row.length; i++) {
-    sum += row[i] * Math.pow(10, i);
-  }
-  return sum;
+  if (row.length === 0) return 0;
+  return row;
 };
 
 P._sumCrrcy=function(crrcy) {
-  let sum = 0;
-  for (let i = 0; i < crrcy.length; i++) {
-    sum += this._sumCrrcyRow(crrcy[i]) * Math.pow(10, i);
-  }
-  return sum;
+  return crrcy;
 };
 
 P._sumDrrdy=function(drrdy) {
@@ -212,10 +223,10 @@ P.toString=function() {
   
   const signStr = this.sign === -1 ? '-' : '';
   const x = this.array;
+  const layer = this.layer;
   const brrby = this.brrby;
   const crrcy = this.crrcy;
   const drrdy = this.drrdy;
-  const layer = this.layer;
   
   if (layer === 0) {
     return `${signStr}${x}`;
@@ -223,53 +234,89 @@ P.toString=function() {
   
   const n = brrby.length - 1;
   
+  function formatAsExponents(arr) {
+    let result = '';
+    for (let i = arr.length - 1; i >= 0; i--) {
+      if (arr[i] === 0) continue;
+      if (result !== '') result += '+';
+      if (i === 0) {
+        result += `${arr[i]}`;
+      } else if (i === 1) {
+        result += `ω*${arr[i]}`;
+      } else {
+        result += `ω^${i}*${arr[i]}`;
+      }
+    }
+    return result || '0';
+  }
+  
+  function formatNestedExponents(matrix) {
+    let result = '';
+    for (let i = matrix.length - 1; i >= 0; i--) {
+      const row = matrix[i];
+      if (!Array.isArray(row)) continue;
+      const rowStr = formatAsExponents(row);
+      if (rowStr === '0') continue;
+      if (result !== '') result += '+';
+      result += rowStr;
+    }
+    return result || '0';
+  }
+  
   let result = '';
   
   for (let i = n; i >= 0; i--) {
-    if (brrby[i] === 0) continue;
+    const coeff = brrby[i];
+    if (coeff === 0) continue;
     
-    let exponent;
+    let term;
+    
     if (layer === 1) {
-      exponent = i;
+      if (i === 0) {
+        term = `${coeff}`;
+      } else if (i === 1) {
+        term = `ω*${coeff}`;
+      } else {
+        term = `ω^${i}*${coeff}`;
+      }
     } else if (layer === 2) {
-      exponent = this._sumCrrcyRow(crrcy[i]);
+      const row = crrcy[i] || [];
+      const expStr = formatAsExponents(row);
+      if (expStr === '0') continue;
+      term = `ω^(${expStr})*${coeff}`;
+    } else if (layer === 3) {
+      const matrix = drrdy[i] || [];
+      const expStr = formatNestedExponents(matrix);
+      if (expStr === '0') continue;
+      term = `ω^(${expStr})*${coeff}`;
     } else {
-      exponent = this._sumCrrcy(drrdy[i]);
+      const matrix = drrdy[i] || [];
+      const expStr = formatNestedExponents(matrix);
+      if (expStr === '0') continue;
+      term = `ω^(${expStr})*${coeff}`;
     }
     
-    if (i === n) {
-      if (layer === 0) {
-        result += `${brrby[i]}`;
-      } else if (layer === 1) {
-        result += `H_ω^${i}*${brrby[i]}_(${x})`;
-      } else if (layer === 2) {
-        result += `H_ω^(ω^${exponent})*${brrby[i]}_(${x})`;
-      } else if (layer === 3) {
-        result += `H_ω^(ω^(ω^${exponent}))*${brrby[i]}_(${x})`;
-      } else {
-        const towerHeight = layer - 3;
-        let tower = 'ω';
-        for (let j = 0; j < towerHeight; j++) {
-          tower = `ω^(${tower})`;
-        }
-        result += `H_${tower}*${brrby[i]}_(${x})`;
-      }
+    if (result === '') {
+      result = term;
     } else {
-      if (layer === 1) {
-        if (i === 1) {
-          result += `+ω*${brrby[i]}`;
-        } else if (i === 0) {
-          result += `+${brrby[i]}`;
-        } else {
-          result += `+ω^${i}*${brrby[i]}`;
-        }
-      } else {
-        result += `+ω^${exponent}*${brrby[i]}`;
-      }
+      result += '+' + term;
     }
   }
   
-  return result ? `${signStr}${result}` : `${signStr}0`;
+  if (result === '') {
+    return `${signStr}0`;
+  }
+  
+  if (layer >= 4) {
+    const towerHeight = layer - 3;
+    let tower = 'ω';
+    for (let i = 1; i < towerHeight; i++) {
+      tower = `ω^(${tower})`;
+    }
+    return `${signStr}H_${tower} ${result}_(${x})`;
+  }
+  
+  return `${signStr}H_${result}_(${x})`;
 };
 
 P.toNumber=function() {
@@ -485,21 +532,10 @@ P.divide=P.div=function(other) {
     return new Metanum(1, 0, 0);
   }
   
-  // If dividing by H_1_(10) which equals 1, return this
-  if (other.layer === 1 && other.brrby.length === 1 && other.brrby[0] === 1) {
-    return new Metanum(this.sign, this.layer, this.array, this.brrby, this.crrcy, this.drrdy);
-  }
-  
   const resultSign = this.sign * other.sign;
   
   if (this.layer === 0 && other.layer === 0) {
     const resultArray = Math.floor(this.array / other.array);
-    if (resultArray === 1) {
-      return new Metanum(resultSign, 1, 10, [1]);
-    }
-    if (resultArray === 0) {
-      return new Metanum(1, 0, 0);
-    }
     return new Metanum(resultSign, 0, resultArray);
   }
   
@@ -520,11 +556,11 @@ P.toPower=P.pow=function(exponent) {
   }
   
   if (exponent._isZero()) {
-    return new Metanum(1, 1, 10, [1]);
+    return new Metanum(1, 0, 1);
   }
   
   // Any number to the power of 1 equals itself
-  if (exponent.layer === 1 && exponent.brrby.length === 1 && exponent.brrby[0] === 1) {
+  if (exponent.layer === 0 && exponent.array === 1) {
     return this.clone();
   }
   
@@ -565,85 +601,85 @@ P.logarithm=P.logBase=P.log=function(base) {
 
 // Static methods
 
-function zero() {
+Q.zero = function() {
   return new Metanum(1, 0, 0);
-}
+};
 
-function one() {
-  return new Metanum(1, 1, 0);
-}
+Q.one = function() {
+  return new Metanum(1, 0, 1);
+};
 
-function fromNumber(num) {
+Q.fromNumber = function(num) {
   if (!Number.isFinite(num)) {
     throw new Error('Cannot create Metanum from non-finite number');
   }
   if (num === 0) {
-    return zero();
+    return Q.zero();
   }
   const sign = num < 0 ? -1 : 1;
   const absNum = Math.abs(num);
   return new Metanum(sign, 0, absNum);
-}
+};
 
-function negate(x) {
+Q.negate = function(x) {
   return new Metanum(x).neg();
-}
+};
 
-function absoluteValue(x) {
+Q.absoluteValue = function(x) {
   return new Metanum(x).abs();
-}
+};
 
-function equalsTo(x, y) {
+Q.equals = Q.equal = function(x, y) {
   return new Metanum(x).eq(y);
-}
+};
 
-function greaterThan(x, y) {
+Q.greaterThan = Q.gt = function(x, y) {
   return new Metanum(x).gt(y);
-}
+};
 
-function lessThan(x, y) {
+Q.lessThan = Q.lt = function(x, y) {
   return new Metanum(x).lt(y);
-}
+};
 
-function greaterThanOrEqualTo(x, y) {
+Q.greaterThanOrEqualTo = Q.gte = function(x, y) {
   return new Metanum(x).gte(y);
-}
+};
 
-function lessThanOrEqualTo(x, y) {
+Q.lessThanOrEqualTo = Q.lte = function(x, y) {
   return new Metanum(x).lte(y);
-}
+};
 
-function notEqualsTo(x, y) {
+Q.notEquals = Q.notEqual = Q.neq = function(x, y) {
   return new Metanum(x).neq(y);
-}
+};
 
-function compare(x, y) {
+Q.compare = function(x, y) {
   return new Metanum(x).cmp(y);
-}
+};
 
-function plus(x, y) {
+Q.plus = Q.add = function(x, y) {
   return new Metanum(x).add(y);
-}
+};
 
-function minus(x, y) {
+Q.minus = Q.sub = Q.subtract = function(x, y) {
   return new Metanum(x).sub(y);
-}
+};
 
-function times(x, y) {
+Q.times = Q.mul = Q.multiply = function(x, y) {
   return new Metanum(x).mul(y);
-}
+};
 
-function divide(x, y) {
+Q.divide = Q.div = function(x, y) {
   return new Metanum(x).div(y);
-}
+};
 
-function toPower(x, y) {
+Q.toPower = Q.pow = function(x, y) {
   return new Metanum(x).pow(y);
-}
+};
 
-function logarithm(x, base) {
+Q.logarithm = Q.logBase = Q.log = function(x, base) {
   return new Metanum(x).logBase(base);
-}
+};
 
 // Constructor function
 function Metanum(sign, layer, array, brrby, crrcy, drrdy) {
@@ -678,63 +714,103 @@ function Metanum(sign, layer, array, brrby, crrcy, drrdy) {
     drrdy = [[[0]]];
   }
   
-  this.sign = this._validateSign(sign);
-  this.layer = this._validateLayer(layer);
-  this.array = this._validateArray(array);
-  this.brrby = this._validateBrrby(brrby || [0]);
+  this.sign = validateSign(sign);
+  this.layer = validateLayer(layer);
+  this.array = validateArray(array);
+  this.brrby = validateBrrby(brrby || [0]);
   
   if (this.layer >= 2) {
-    this.crrcy = this._validateCrrcy(crrcy || [[0]]);
+    this.crrcy = validateCrrcy(crrcy || [[0]]);
   } else {
     this.crrcy = [[0]];
   }
   
   if (this.layer >= 3) {
-    this.drrdy = this._validateDrrdy(drrdy || [[[0]]]);
+    this.drrdy = validateDrrdy(drrdy || [[[0]]]);
   } else {
     this.drrdy = [[[0]]];
   }
 }
 
+
 // Assign prototype
 Metanum.prototype = P;
 
-// Assign static methods
-Metanum.zero = zero;
-Metanum.one = one;
-Metanum.fromNumber = fromNumber;
-Metanum.negate = Metanum.neg = negate;
-Metanum.absoluteValue = Metanum.abs = absoluteValue;
-Metanum.equalsTo = Metanum.equal = Metanum.equals = Metanum.eq = equalsTo;
-Metanum.greaterThan = Metanum.gt = greaterThan;
-Metanum.lessThan = Metanum.lt = lessThan;
-Metanum.greaterThanOrEqualTo = Metanum.gte = greaterThanOrEqualTo;
-Metanum.lessThanOrEqualTo = Metanum.lte = lessThanOrEqualTo;
-Metanum.notEqualsTo = Metanum.notEqual = Metanum.neq = notEqualsTo;
-Metanum.compare = Metanum.cmp = compare;
-Metanum.plus = Metanum.add = plus;
-Metanum.minus = Metanum.sub = minus;
-Metanum.times = Metanum.mul = times;
-Metanum.divide = Metanum.div = divide;
-Metanum.toPower = Metanum.pow = toPower;
-Metanum.logarithm = Metanum.logBase = Metanum.log = logarithm;
-
-// Assign constants
+// Assign static methods from Q
 for (var prop in Q) {
   if (Q.hasOwnProperty(prop)) {
     Metanum[prop] = Q[prop];
   }
 }
 
-// Assign defaults
-for (var prop in MetanumDefaults) {
-  if (MetanumDefaults.hasOwnProperty(prop)) {
-    Metanum[prop] = MetanumDefaults[prop];
+// Assign constants from R
+for (var constProp in R) {
+  if (R.hasOwnProperty(constProp)) {
+    Metanum[constProp] = R[constProp];
   }
 }
 
-// Assign zero and one as static properties
-Metanum.ZERO = Metanum.zero();
-Metanum.ONE = Metanum.one();
-
+// Export
 export default Metanum;
+; (function (globalScope) {
+    "use strict";
+
+    var external = true;
+
+    var MetanumConfig = {
+        maxOps: 1000,
+        serializeMode: 0,
+        debug: 0
+    };
+
+    //#region environment detection
+    function getGlobalScope() {
+        if (typeof globalScope !== "undefined") {
+            return globalScope;
+        }
+        if (typeof self !== "undefined" && self && self.self === self) {
+            return self;
+        }
+        if (typeof globalThis !== "undefined") {
+            return globalThis;
+        }
+        return {};
+    }
+
+    var globalScope = getGlobalScope();
+    //#endregion
+
+    //#region export
+    function exportMetanum() {
+        // ES Module
+        if (typeof exports !== "undefined" && exports !== null) {
+            try {
+                exports = Metanum;
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Node.js
+        if (typeof module !== "undefined" && module && module.exports) {
+            try {
+                module.exports = Metanum;
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Browser or other environments
+        try {
+            globalScope.Metanum = Metanum;
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    exportMetanum();
+
+})(typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : (typeof global !== "undefined" ? global : this)));
