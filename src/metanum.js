@@ -28,7 +28,7 @@ R.TRITRI = "1, 1, 3638334640023.7783, [7625597484984, 1]";
 /* The Graham's Number, = G^64(4) */
 R.GRAHAMS_NUMBER = "1, 2, 3638334640023.7783, [7625597484984, 1, 63], [[1], [3], [0, 1]]";
 /* QqQe308 = H_ω^(ω17+16)+ω^(ω17+4)(308) */
-R.QQQE308 = "1, 2, 308, [1, 1], [[4, 17], [16, 17]]";
+R.QqQe308 = "1, 2, 308, [1, 1], [[4, 17], [16, 17]]";
 R.MAX_METANUM_VALUE = "1, " + MAX_SAFE_INTEGER + ", " + MAX_SAFE_INTEGER + ", [" + MAX_SAFE_INTEGER + "], [[ " + MAX_SAFE_INTEGER + " ]], [[[[" + MAX_SAFE_INTEGER + "]]]]";
 
 
