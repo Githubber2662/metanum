@@ -335,7 +335,7 @@ It equals to (β,γ,δ,...,int(α)[1]10^frac(κ),0,...,0,ζ)|10 with int(κ) 0's
 
 Rule 2 and 3 are the case where the last nonzero entry is at the end of a plane and is an integer. Rule 4 is when the last nonzero entry is at the end of a plane, you use the fractional part of the last entry, and put it in the next row.
 
-By countinuing using recursion and diagonalization to !Aa, we can define !Aa|a (f_ω^ω+1_(10) in FGH, using | as seperator symbol), !Ab (f_ω^(ω+1)_(10) in FGH), !Ac, !Ad,..., !Az with the same meaning as !Aa, and !Ba(f_ω^(ω2)_(10) in FGH), !Bb, !Bc, ..., !Bz, !Aaa. Comparing these with the previous letters, we can see that notations with ! symbol have a more ω^ in FGH than those without ! symbol.
+By adding ! before a letter notation, it changes from HH to FGH. Aa represents H_ω, so !Aa represents f_ω which equals to H_ω^ω. Then we can define !Ab (f_ω^(ω+1)_(10) in FGH), !Ac, !Ad,..., !Az with the same meaning as !Aa, and !Ba(f_ω^(ω2)_(10) in FGH), !Bb, !Bc, ..., !Bz, !Aaa, etc. Comparing these with the previous letters, we can see that notations with ! symbol have a more ω^ in FGH than those without ! symbol.
 
 Fractional number of rows, columns, etc.. are defined in the same way as in the linear array notation, [0] is the comma. ζ is an array of 0's and dimensional seperators. 
 
@@ -355,9 +355,9 @@ The Definiton of more symbols is similar to the definition of @Aa.
 
 \$Aa ~ f_ω^ω^ω^ω^ω_(10)
 
-And there are more symbols : % & ~ &lt; &gt; ? ▲ ▼ ● ◆ ■ ★
+And there are more symbols : % & ~ &lt; &gt; ? and symbol combinations like !!, !@, !#, @!.
 
-Then we can define (the β-th symbol)Aa = f_ω^ω^...^ω(β+1 ω's)_(10)
+Then we can define (the β-th symbol or symbol combination)Aa = f_ω^ω^...^ω(β+1 ω's)_(10)
 
 ### Definition of the final letter: ε
 
