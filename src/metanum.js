@@ -7,13 +7,12 @@
 
   // --  EDITABLE DEFAULTS  -- //
   var MetaNum = {
-    // The maximum number of operators stored in array.
+    // The maximum number of operators stored in multi-dimension arrays.
     // If the number of operations exceed the limit, then the least significant operations will be discarded.
     // This is to prevent long loops and eating away of memory and processing time.
-    // 1000 means there are at maximum of 1000 elements in array.
-    // It is not recommended to make this number too big.
-    // `MetaNum.maxOps = 1000;`
-    maxOps: 1000,
+    // 15 means there are at maximum of 15 elements in each 1D-array, 15 1D-arrays in each 2D-array, etc.
+    // It is not recommended to make this number too big or too small.
+    maxOps: 15,
 
     // Specify what format is used when serializing for JSON.stringify
     // JSON   0 JSON object
@@ -25,7 +24,7 @@
     // NONE   0 Show no information.
     // NORMAL 1 Show operations.
     // ALL    2 Show everything.
-    debug: 0
+    debug: 2
   },
   // -- END OF EDITABLE DEFAULTS -- //
 
@@ -71,6 +70,7 @@ R.TRITRI = "1, 1, 3638334640023.7783, [7625597484984, 1]";
 R.GRAHAMS_NUMBER = "1, 2, 3638334640023.7783, [7625597484984, 1, 63], [[1], [3], [0, 1]]";
 /* QqQe308 = H_ω^(ω17+16)+ω^(ω17+4)(308) */
 R.QqQe308 = "1, 2, 308, [1, 1], [[4, 17], [16, 17]]";
+/* MAX_METANUM_VALUE = ε9.007e15 */
 R.MAX_METANUM_VALUE = "1, " + MAX_SAFE_INTEGER + ", " + MAX_SAFE_INTEGER + ", [" + MAX_SAFE_INTEGER + "], [[ " + MAX_SAFE_INTEGER + " ]], [[[" + MAX_SAFE_INTEGER + "]]]";
 // end region MetaNum Constants
 
@@ -356,6 +356,15 @@ Q.round=function (x){
 };
 
 //2. Comparisons
+/* 通过康托尔范式(cantor normal form, CNF)比较序数
+任何序数α>0，都可以唯一表示为：α1=ω^β1*c1+ω^β2*c2+⋯+ω^βn*cn
+其中：β1>β2>⋯>βn是递减的序数，c1,c2,⋯,cn是非零自然数
+设两个康托尔范式序数：α=ω^β1*c1+ω^β2*c2+⋯+ω^βn*cn，γ=ω^δ1*d1+ω^δ2*d2+⋯+ω^δn*dn
+比较最高次项：找到最大的i使得βi≠δi，如果βi>δi，则α>γ；如果βi<δi，则α<γ；
+如果βi=δi，比较系数c1和d1，如果c1>d1，则α>γ；如果c1<d1，则α<γ；如果c1=d1，去掉第一项，递归比较剩余部分
+核心原则：字典序比较，就像比较多项式或字符串一样，从左到右（从高次到低次）逐项比较，第一个不同的位置决定大小关系
+例如：ω^2已经大于任何ω*n+m（无论n,m多大），这反映了序数运算的吸收性质：ω*β会"吸收"所有更小的序数的任意有限组合。
+*/
 // brrby 比较函数
 function brrbyCompare(tb, ob) {
   // 先比较长度
@@ -414,7 +423,7 @@ function drrdyCompare(td, od) {
 }
 P.compareTo=P.cmp=function(other) {
   if (!(other instanceof MetaNum)) other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log('Comparing', this, 'to', other);
+  if (MetaNum.debug>=MetaNum.ALL) console.log('Comparing', this, 'to', other);
   if (isNaN(this.array) || isNaN(other.array)) return NaN;
   if (this.array == Infinity && other.array != Infinity) return this.sign;
   if (this.array != Infinity && other.array == Infinity) return -other.sign;
@@ -427,18 +436,8 @@ P.compareTo=P.cmp=function(other) {
   else{
     //layer=0，array只有一个元素，直接比较array的值
     if (this.layer == 0){
-      var e=this.array;
-      var f=other.array;
-      if (e>f){
-        r=1;
-      }
-      else if (e<f){
-        r=-1;
-      }
-      else{
-        r=0;
-      }
-      if (MetaNum.debug>=MetaNum.NORMAL) console.log('Layer 0 Comparison Result:', r);
+      r=this.array>other.array?1:(this.array<other.array?-1:0);
+      if (MetaNum.debug>=MetaNum.ALL) console.log('Layer 0 Comparison Result:', r);
     }
     //layer=1，先比较brrby，再比较array
     else if (this.layer == 1){
@@ -446,11 +445,9 @@ P.compareTo=P.cmp=function(other) {
       if (bCmp !== 0) {
         r = bCmp;
       } else {
-        if (this.array > other.array) r = 1;
-        else if (this.array < other.array) r = -1;
-        else r = 0;
+        r=this.array>other.array?1:(this.array<other.array?-1:0);
       }
-      if (MetaNum.debug>=MetaNum.NORMAL) console.log('Layer 1 Comparison Result:', r);
+      if (MetaNum.debug>=MetaNum.ALL) console.log('Layer 1 Comparison Result:', r);
     }
     //layer=2，先比较crrcy，再比较brrby，最后比较array
     else if (this.layer == 2){
@@ -462,11 +459,10 @@ P.compareTo=P.cmp=function(other) {
         if (bCmp !== 0) {
           r = bCmp;
         } else {
-          if (this.array > other.array) r = 1;
-          else if (this.array < other.array) r = -1;
-          else r = 0;
+          r=this.array>other.array?1:(this.array<other.array?-1:0);
         }
       }
+      if (MetaNum.debug>=MetaNum.ALL) console.log('Layer 2 Comparison Result:', r);
     }
     //layer>=3，先比较drrdy，再比较crrcy，再比较brrby，最后比较array
     else if (this.layer >= 3){
@@ -482,13 +478,12 @@ P.compareTo=P.cmp=function(other) {
           if (bCmp !== 0) {
             r = bCmp;
           } else {
-            if (this.array > other.array) r = 1;
-            else if (this.array < other.array) r = -1;
-            else r = 0;
+            r=this.array>other.array?1:(this.array<other.array?-1:0);
           }
         }
       }
     }
+    if (MetaNum.debug>=MetaNum.ALL) console.log('Layer >= 3 Comparison Result:', r);
   }
   return r*m;
 }
@@ -548,7 +543,7 @@ Q.maximum=Q.max=function (x,y){
 P.plus=P.add=function(other) {
   var x=this.clone();
   other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"add(+)"+other);
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"+"+other);
   //特殊值
   if (x.sign==-1) return x.neg().add(other.neg()).neg();
   if (other.sign==-1) return x.sub(other.neg());
@@ -578,7 +573,7 @@ Q.plus=Q.add=function (x,y){
 P.minus=P.sub=function(other) {
   var x=this.clone();
   other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"sub(-)"+other);
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"-"+other);
   if (x.sign==-1) return x.neg().sub(other.neg()).neg();
   if (other.sign==-1) return x.add(other.neg());
   if (x.eq(other)) return MetaNum.ZERO.clone();
@@ -609,7 +604,7 @@ Q.minus=Q.sub=function (x,y){
 P.times=P.mul=function(other) {
   var x=this.clone();
   other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"mul(*)"+other);
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"×"+other);
   if (x.sign*other.sign==-1) return x.abs().mul(other.abs()).neg();
   if (x.sign==-1) return x.abs().mul(other.abs());
   if (x.isNaN()||other.isNaN()||x.eq(MetaNum.ZERO)&&other.isInfinite()||x.isInfinite()&&other.abs().eq(MetaNum.ZERO)) return MetaNum.NAN.clone();
@@ -628,7 +623,7 @@ Q.times=Q.mul=function (x,y){
 P.divide=P.div=function(other) {
   var x=this.clone();
   other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"div(/)"+other);
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"÷"+other);
   if (x.sign*other.sign==-1) return x.abs().div(other.abs()).neg();
   if (x.sign==-1) return x.abs().div(other.abs());
   if (x.isNaN()||other.isNaN()||x.isInfinite()&&other.isInfinite()||x.eq(MetaNum.ZERO)&&other.eq(MetaNum.ZERO)) return MetaNum.NAN.clone();
@@ -649,7 +644,7 @@ Q.divide=Q.div=function (x,y){
   return new MetaNum(x).div(y);
 };
 P.reciprocate=P.rec=function (){
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"^-1");
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"⁻¹");
   if (this.isNaN()||this.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
   if (this.abs().gt("2e323")) return MetaNum.ZERO.clone();
   return new MetaNum(1/this);
@@ -659,7 +654,7 @@ Q.reciprocate=Q.rec=function (x){
 };
 P.toPower=P.pow=function(other) {
   other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"pow(^)"+other);
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"↑"+other);
   if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
   if (other.eq(MetaNum.ONE)) return this.clone();
   if (other.lt(MetaNum.ZERO)) return this.pow(other.neg()).rec();
@@ -673,7 +668,6 @@ P.toPower=P.pow=function(other) {
   if (this.max(other).gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)) return this.max(other);
   if (this.eq(10)){
     if (other.gt(MetaNum.ZERO)){
-      //console.log("10pow:"+this+other);
       other.layer=1;
       other.brrby[0]=(other.brrby[0]+1)||1;
       other.normalize();
@@ -683,13 +677,18 @@ P.toPower=P.pow=function(other) {
   }
   if (other.lt(MetaNum.ONE)) return this.root(other.rec());
   var n=Math.pow(this.toNumber(),other.toNumber());
-  //console.log("non10pow:"+this+other);
   if (n<=MetaNum.MAX_SAFE_INTEGER) return new MetaNum(n);
   return MetaNum.pow(10,this.log10().mul(other));
 };
 Q.toPower=Q.pow=function(x,y) {
   return new MetaNum(x).pow(y);
 };
+P.powered_by=P.pwb=function(other){
+  return new MetaNum(other).pow(this);
+}
+Q.powered_by=Q.pwb=function(x,y){
+  return new MetaNum(y).pow(x);
+}
 P.exponential=P.exp=function (){
   return OmegaNum.pow(Math.E,this);
 };
@@ -698,7 +697,7 @@ Q.exponential=Q.exp=function (x){
 };
 P.root=P.roo=function (other){
   other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"roo(√)"+other);
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"√"+other);
   if (other.eq(MetaNum.ONE)) return this.clone();
   if (other.lt(MetaNum.ZERO)) return this.root(other.neg()).rec();
   if (other.lt(MetaNum.ONE)) return this.pow(other.rec());
@@ -726,7 +725,6 @@ Q.cubeRoot=Q.cbrt=function (x){
 };
 P.generalLogarithm=P.log10=function (){
   var x=this.clone();
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log("log"+this);
   if (x.lt(MetaNum.ZERO)) return MetaNum.NaN.clone();
   if (x.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
   if (x.lte(MetaNum.MAX_SAFE_INTEGER)) return new MetaNum(Math.log10(x.toNumber()));
@@ -739,6 +737,7 @@ Q.generalLogarithm=Q.log10=function (x){
   return new MetaNum(x).log10();
 };
 P.logarithm=P.logBase=function (base){
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"🪵"+base);
   if (base===undefined) base=Math.E;
   return this.log10().div(MetaNum.log10(base));
 };
@@ -1015,8 +1014,9 @@ P.toString=function (){
     return s;
   }
   else if(this.layer == 2){
-    for (let i = n; i >= 0; i--) {
-      const coeff = brrby[i];
+    let result = '';
+    for (let i = this.crrcy.length - 1; i >= 0; i--) {
+      const coeff = this.brrby[i];
       if (coeff === 0) continue;
       const row = this.crrcy[i] || [];
       const expStr = formatAsExponents(row);
@@ -1031,8 +1031,9 @@ P.toString=function (){
     return `${signStr}H_${result}_(${this.array})`;
   }
   else if(this.layer == 3){
-    for (let i = n; i >= 0; i--) {
-      const coeff = brrby[i];
+    let result = '';
+    for (let i = this.drrdy.length - 1; i >= 0; i--) {
+      const coeff = this.brrby[i];
       if (coeff === 0) continue;
       const matrix = this.drrdy[i] || [];
       const expStr = formatNestedExponents(matrix);
@@ -1142,18 +1143,18 @@ P._exponentsToString=function(exponents, layer) {
   return `ω^(${exponents})`;
 };
 
-Q.fromNumber = function(x) {
+Q.fromNumber = function(input) {
   if (typeof input!="number") throw Error(invalidArgument+"Expected Number");
   var x=new MetaNum();
   x.array=Math.abs(input);
   x.sign=input<0?-1:1;
   x.normalize();
+  if (MetaNum.debug >= MetaNum.ALL) console.log(input+"fromNumber->",x);
   return x;
 };
 
-Q.fromString = function(x) {
+Q.fromString = function(input) {
   // MetaNum中最果糕的函数之二
-  var input = x;
   var x = new MetaNum();
   
   // 处理特殊值
@@ -1300,6 +1301,7 @@ Q.fromString = function(x) {
       x.brrby = [1];
     }
     x.normalize();
+    if (MetaNum.debug >= MetaNum.ALL) console.log(input+"fromString->",x);
     return x;
   }
   
