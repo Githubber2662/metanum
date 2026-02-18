@@ -1,30 +1,26 @@
 // Author: dlsdl 0.3.0
 // Reconstruct code and correct calculating functions
-// Code structure inspired from ExpantaNum.js and PowiainaNum.js
-
+// Code snippets and templates from ExpantaNum.js and PowiainaNum.js
 ;(function (globalScope) {
   "use strict";
-
   // --  EDITABLE DEFAULTS  -- //
   var MetaNum = {
     // The maximum number of operators stored in multi-dimension arrays.
     // If the number of operations exceed the limit, then the least significant operations will be discarded.
     // This is to prevent long loops and eating away of memory and processing time.
-    // 15 means there are at maximum of 15 elements in each 1D-array, 15 1D-arrays in each 2D-array, etc.
+    // 16 means there are at maximum of 16 elements in each 1D-array, 16 1D-arrays in each 2D-array, etc.
     // It is not recommended to make this number too big or too small.
-    maxOps: 15,
-
+    maxOps: 16,
     // Specify what format is used when serializing for JSON.stringify
     // JSON   0 JSON object
     // STRING 1 String
     serializeMode: 0,
-
     // Deprecated
     // Level of debug information printed in console
     // NONE   0 Show no information.
     // NORMAL 1 Show operations.
     // ALL    2 Show everything.
-    debug: 2
+    debug: 1
   },
   // -- END OF EDITABLE DEFAULTS -- //
 
@@ -64,8 +60,15 @@ R.POSITIVE_INFINITY = Number.POSITIVE_INFINITY;
 R.E_MAX_SAFE_INTEGER="E"+MAX_SAFE_INTEGER;
 R.EE_MAX_SAFE_INTEGER="EE"+MAX_SAFE_INTEGER;
 R.TETRATED_MAX_SAFE_INTEGER="F"+MAX_SAFE_INTEGER;
-/* Tritri, = 3↑↑↑3 = power tower with height 7625597484987 base 3. */
-R.TRITRI = "1, 1, 3638334640023.7783, [7625597484984, 1]";
+R.PENTATED_MAX_SAFE_INTEGER="G"+MAX_SAFE_INTEGER;
+/*
+R.OMEGATED_MAX_SAFE_INTEGER="Aa"+MAX_SAFE_INTEGER;
+R.OMEGAEXPANTED_MAX_SAFE_INTEGER="Ba"+MAX_SAFE_INTEGER;
+R.MEGOTED_MAX_SAFE_INTEGER="Aaa"+MAX_SAFE_INTEGER;
+R.POWIAINATED_MAX_SAFE_INTEGER="Aaaa"+MAX_SAFE_INTEGER;
+R.GODGAH_MAX_SAFE_INTEGER="!Aa"+MAX_SAFE_INTEGER;
+R.GATHOR_MAX_SAFE_INTEGER="@Aa"+MAX_SAFE_INTEGER;
+*/
 /* The Graham's Number, = G^64(4) */
 R.GRAHAMS_NUMBER = "1, 2, 3638334640023.7783, [7625597484984, 1, 63], [[1], [3], [0, 1]]";
 /* QqQe308 = H_ω^(ω17+16)+ω^(ω17+4)(308) */
@@ -556,12 +559,13 @@ P.plus=P.add=function(other) {
   var p=x.min(other);
   var q=x.max(other);
   var t;
+  //相差超过9e15倍直接返回最大值
   if (q.gt(MetaNum.E_MAX_SAFE_INTEGER)||q.div(p).gt(MetaNum.MAX_SAFE_INTEGER)) t=q;
-  //layer=0(brrby为空)时array直接相加
-  else if (!q.brrby[0]) t=new MetaNum(x.toNumber()+other.toNumber());
-  //layer=1时和OmegaNum的加法相似，OmegaNum的array能拆成MetaNum的array与brrby拼接
+  //layer=0时array直接相加
+  else if (q.layer==0) t=new MetaNum(x.toNumber()+other.toNumber());
+  //layer=1且brrby[0]==1时，array取指数后相加取对数
   else if (q.brrby[0]==1){
-    var a=p.brrby[0]?p.array:Math.log10(p.array);
+    var a=p.layer>0?p.array:Math.log10(p.array);
     t=new MetaNum([a+Math.log10(Math.pow(10,q.array-a)+1),1]);
     }
   p=q=null;
@@ -589,9 +593,9 @@ P.minus=P.sub=function(other) {
     t=q;
     t=n?t.neg():t;
   }
-  else if (!q.brrby[0]) t=new MetaNum(x.toNumber()-other.toNumber());
+  else if (q.layer==0) t=new MetaNum(x.toNumber()-other.toNumber());
   else if (q.brrby[0]==1){
-    var a=p.brrby[0]?p.array:Math.log10(p.array);
+    var a=p.layer>0?p.array:Math.log10(p.array);
     t=new MetaNum([a+Math.log10(Math.pow(10,q.array-a)-1),1]);
     t=n?t.neg():t;
   }
@@ -614,7 +618,7 @@ P.times=P.mul=function(other) {
   if (other.isInfinite()) return other;
   if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) return x.max(other);
   var n=x.toNumber()*other.toNumber();
-  if (n<=MetaNum.MAX_SAFE_INTEGER) return new MetaNum(n);
+  if (n<=MAX_SAFE_INTEGER) return new MetaNum(n);
   return MetaNum.pow(10,x.log10().add(other.log10()));
 };
 Q.times=Q.mul=function (x,y){
@@ -634,7 +638,7 @@ P.divide=P.div=function(other) {
   if (other.isInfinite()) return MetaNum.ZERO.clone();
   if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) return x.gt(other)?x.clone():MetaNum.ZERO.clone();
   var n=x.toNumber()/other.toNumber();
-  if (n<=MetaNum.MAX_SAFE_INTEGER) return new MetaNum(n);
+  if (n<=MAX_SAFE_INTEGER) return new MetaNum(n);
   var pw=MetaNum.pow(10,x.log10().sub(other.log10()));
   var fp=pw.floor();
   if (pw.sub(fp).lt(new MetaNum(1e-9))) return fp;
@@ -652,9 +656,19 @@ P.reciprocate=P.rec=function (){
 Q.reciprocate=Q.rec=function (x){
   return new MetaNum(x).rec();
 };
+P.modular=P.mod=function (other){
+  other=new MetaNum(other);
+  if (other.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+  if (this.sign*other.sign==-1) return this.abs().mod(other.abs()).neg();
+  if (this.sign==-1) return this.abs().mod(other.abs());
+  return this.sub(this.div(other).floor().mul(other));
+};
+Q.modular=Q.mod=function (x,y){
+  return new MetaNum(x).mod(y);
+};
 P.toPower=P.pow=function(other) {
   other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"↑"+other);
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"▲"+other);
   if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
   if (other.eq(MetaNum.ONE)) return this.clone();
   if (other.lt(MetaNum.ZERO)) return this.pow(other.neg()).rec();
@@ -677,7 +691,7 @@ P.toPower=P.pow=function(other) {
   }
   if (other.lt(MetaNum.ONE)) return this.root(other.rec());
   var n=Math.pow(this.toNumber(),other.toNumber());
-  if (n<=MetaNum.MAX_SAFE_INTEGER) return new MetaNum(n);
+  if (n<=MAX_SAFE_INTEGER) return new MetaNum(n);
   return MetaNum.pow(10,this.log10().mul(other));
 };
 Q.toPower=Q.pow=function(x,y) {
@@ -724,20 +738,22 @@ Q.cubeRoot=Q.cbrt=function (x){
   return new MetaNum(x).root(3);
 };
 P.generalLogarithm=P.log10=function (){
+  if (MetaNum.debug>=MetaNum.ALL) console.log("㏒"+this);
   var x=this.clone();
   if (x.lt(MetaNum.ZERO)) return MetaNum.NaN.clone();
   if (x.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
   if (x.lte(MetaNum.MAX_SAFE_INTEGER)) return new MetaNum(Math.log10(x.toNumber()));
   if (!x.isFinite()) return x;
   if (x.gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)) return x;
-  x.brrby[0]--;
+  if (x.brrby[0]>=1) x.brrby[0]--;
+  else x.array=Math.log10(x.array);
   return x.normalize();
 };
 Q.generalLogarithm=Q.log10=function (x){
   return new MetaNum(x).log10();
 };
 P.logarithm=P.logBase=function (base){
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"🪵"+base);
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"▼"+base);
   if (base===undefined) base=Math.E;
   return this.log10().div(MetaNum.log10(base));
 };
@@ -752,8 +768,23 @@ Q.naturalLogarithm=Q.log=Q.ln=function (x){
 };
 
 //4. Hyperoperations
-//not implemented yet
-
+//work in progress
+P.tetrate=P.tet=function(other,payload){
+  if (payload===undefined) payload=MetaNum.ONE;
+  var t=this.clone();
+  other=new MetaNum(other);
+  payload=new MetaNum(payload);
+  if (payload.neq(MetaNum.ONE)) other=other.add(payload.slog(t));
+  if (MetaNum.debug>=MetaNum.NORMAL) console.log(t+"𝐓"+other);
+  var negln;
+  if (t.isNaN()||other.isNaN()||payload.isNaN()) return MetaNum.NAN.clone();
+  /*if (other.isInfinite()&&other.sign>0){
+    if (t.gte(Math.exp(1/Math.E))) return OmegaNum.POSITIVE_INFINITY.clone();
+      //Formula for infinite height power tower.
+    negln = t.ln().neg();
+    return negln.lambertw().div(negln);
+  }*/
+};
 
 //5. Conversions
 P.normalize = function () {
@@ -775,7 +806,7 @@ P.normalize = function () {
   if (!x.crrcy || !x.crrcy.length) x.crrcy = [[0]];
   if (!x.drrdy || !x.drrdy.length) x.drrdy = [[[0]]];
   if (x.array === Infinity || Number.isNaN(x.array)) {
-    return x; //直接返回MetaNum.Infinity
+    return x; //直接返回Nan或Infinity
   }
   // 符号处理：确保 sign 只能是 1 或 -1
   if (x.sign != 1 && x.sign != -1) {
@@ -916,46 +947,57 @@ P.normalize = function () {
   // 主循环：排序和规范化
   do{
     b = false;  // 重置标志
-    //layer=0或1，保持原样
-    //layer=2，按照crrcyCompare函数排序crrcy
+    //layer=0，保持原样
+    //layer=1，限制brrby长度
+    if (x.layer<=1) {
+      //限制brrby长度
+      if(x.brrby.length>MetaNum.maxOps) x.brrby.splice(0,x.brrby.length - MetaNum.maxOps);
+    };
+    //layer=2，限制crrcy及其子数组长度，按照crrcyCompare函数排序crrcy
     if (x.layer===2){
+      //限制crrcy及其子数组长度
+      if(x.crrcy.length>MetaNum.maxOps) x.crrcy.splice(0,x.crrcy.length - MetaNum.maxOps);
+      x.crrcy.forEach(row => {
+        if (row.length > MetaNum.maxOps) row.splice(0, row.length - MetaNum.maxOps);
+      });
       x.crrcy.sort(crrcyCompare);
     }
-    //layer=3，按照drrdyCompare函数排序drrdy，再按照crrcyCompare函数排序crrcy
+    //layer=3，限制drrdy及其子数组长度，按照drrdyCompare函数排序drrdy，再按照crrcyCompare函数排序crrcy
     else if (x.layer===3){
+        //限制drrdy及其子数组长度
+      if(x.drrdy.length>MetaNum.maxOps) x.drrdy.splice(0,x.drrdy.length - MetaNum.maxOps);
+        x.drrdy.forEach(tier => {
+        if (tier.length > MetaNum.maxOps) tier.splice(0, tier.length - MetaNum.maxOps);
+          tier.forEach(row => {
+          if (row.length > MetaNum.maxOps) row.splice(0, row.length - MetaNum.maxOps);
+        });
+      });
       x.drrdy.sort(drrdyCompare);
       x.drrdy.forEach(tier => tier.sort(crrcyCompare));
     }
-    if (MetaNum.debug >= MetaNum.ALL) console.log("sorted: " + this);
-    /*限制brrby长度
-    if(x.brrby.length>MetaNum.maxOps) x.brrby.splice(0,x.brrby.length - MetaNum.maxOps);
-    //限制crrcy及其子数组长度
-    if(x.crrcy.length>MetaNum.maxOps) x.crrcy.splice(0,x.crrcy.length - MetaNum.maxOps);
-    x.crrcy.forEach(row => {
-      if (row.length > MetaNum.maxOps) row.splice(0, row.length - MetaNum.maxOps);
-    });
-    //限制drrdy及其子数组长度
-    if(x.drrdy.length>MetaNum.maxOps) x.drrdy.splice(0,x.drrdy.length - MetaNum.maxOps);
-    x.drrdy.forEach(tier => {
-      if (tier.length > MetaNum.maxOps) tier.splice(0, tier.length - MetaNum.maxOps);
-      tier.forEach(row => {
-        if (row.length > MetaNum.maxOps) row.splice(0, row.length - MetaNum.maxOps);
-      });
-    });*/
+    if (MetaNum.debug >= MetaNum.ALL) console.log("cut and sorted: " + this);
     //layer升降级
+    //layer=0，当array大于MAX_SAFE_INTEGER时，升级为layer=1
     if(x.layer==0 && x.array>MAX_SAFE_INTEGER){
       x.layer = 1;
       x.array = Math.log10(x.array);
       x.brrby = [1];
       b=true;
     }
+    //layer=1，当brrby为[0]时，降级为layer=0
     else if(x.layer==1){
+      if(x.brrby==[0] || !x.brrby){
+        x.layer=0;
+        b=true;
+      }
+      //当array小于MAX_E=log10MSI时，降级为layer=0
       while (x.array<MAX_E && x.brrby[0]){
         x.array=Math.pow(10,x.array);
         x.brrby[0]--;
         if(x.brrby[0]==0) x.layer=0;
         b=true;
       }
+      //当brrby长度大于2且brrby[i-1]为0时，为brrby[i-2]赋值array，array重置为1，brrby[i-1]--
       if (x.brrby.length>2 && !x.brrby[0]){
         for (i=2;!x.brrby[i-1];++i) continue;
         x.brrby[i-2]=x.array;
@@ -963,6 +1005,7 @@ P.normalize = function () {
         x.brrby[i-1]--;
         b=true;
       }
+      //当brrby[i-1]大于MAX_SAFE_INTEGER时，为brrby[i]赋值1，array赋值brrby[i-1]+1，brrby[0...i-1]重置为0
       for (let l=x.array.length,i=1;i<l;++i){
         if (x.brrby[i-1]>MAX_SAFE_INTEGER){
           x.brrby[i]=(x.brrby[i]||0)+1;
@@ -979,6 +1022,7 @@ P.normalize = function () {
   return x;
 }
 P.toNumber=function (){
+  if (MetaNum.debug >= MetaNum.ALL) console.log(this + " to number");
   if (this.sign==-1) return -1*this.abs();
   if (this.brrby.length>=1&&(this.brrby[0]>=2||this.brrby[0]==1&&this.array>Math.log10(Number.MAX_VALUE))) return Infinity;
   if (this.brrby[0]==1) return Math.pow(10,this.array);
@@ -997,20 +1041,17 @@ P.toString=function (){
     var s=signStr;
     if (this.brrby.length>=1){
       for (var i=this.brrby.length-1;i>=2;--i){
-        var q=i>=5?"{"+i+"}":"^".repeat(i);
-        if (this.brrby[i-1]>1) s+="(10"+q+")^"+this.brrby[i-1]+" ";
-        else if (this.brrby[i-1]==1) s+="10"+q;
+        var q=String.fromCharCode(68+i);
+        if (this.brrby[i-1]>1) s+=q+"^"+this.brrby[i-1];
+        else if (this.brrby[i-1]==1) s+=q;
       }
     }
     if (this.brrby[0] < 3) {
-      if (this.brrby[0] >= 1) {
-        s += "e".repeat(this.brrby[0] - 1) + Math.pow(10, this.array - Math.floor(this.array)) + "e" + Math.floor(this.array);
-      } else {
-        s += Math.pow(10, this.array - Math.floor(this.array)) + "e" + Math.floor(this.array);
-      }
+      if (this.brrby[0] >= 1) s += "E".repeat(this.brrby[0] - 1) + Math.pow(10, this.array - Math.floor(this.array)) + "E" + Math.floor(this.array);
+      else s += Math.pow(10, this.array - Math.floor(this.array)) + "E" + Math.floor(this.array);
     }
-    else if (this.brrby[0]<8) s+="e".repeat(this.brrby[0])+this.array;
-    else s+="(10^"+this.brrby[0]+")^"+this.array;
+    else if (this.brrby[0]<8) s += "E".repeat(this.brrby[0])+this.array;
+    else s+="F^"+this.brrby[0]+" "+this.array;
     return s;
   }
   else if(this.layer == 2){
@@ -1083,7 +1124,7 @@ function formatAsExponents(arr) {
       }
     }
     return result || '0';
-  }
+}
 function formatNestedExponents(matrix) {
     let result = '';
     for (let i = matrix.length - 1; i >= 0; i--) {
@@ -1095,8 +1136,7 @@ function formatNestedExponents(matrix) {
       result += rowStr;
     }
     return result || '0';
-  }
-
+}
 P._sumBrrby=function(brrby) {
   let sum = 0;
   for (let i = 0; i < brrby.length; i++) {
@@ -1104,16 +1144,13 @@ P._sumBrrby=function(brrby) {
   }
   return sum;
 };
-
 P._sumCrrcyRow=function(row) {
   if (row.length === 0) return 0;
   return row;
 };
-
 P._sumCrrcy=function(crrcy) {
   return crrcy;
 };
-
 P._sumDrrdy=function(drrdy) {
   let sum = 0;
   for (let i = 0; i < drrdy.length; i++) {
@@ -1121,7 +1158,6 @@ P._sumDrrdy=function(drrdy) {
   }
   return sum;
 };
-
 P._highestExponent=function() {
   const n = this.brrby.length - 1;
   if (this.layer === 0) return 0;
@@ -1130,19 +1166,43 @@ P._highestExponent=function() {
   if (this.layer >= 3) return this._sumDrrdy(this.drrdy);
   return n;
 };
-
 P._getHighestMultiplier=function() {
   const n = this.brrby.length - 1;
   return this.brrby[n] || 0;
 };
-
 P._exponentsToString=function(exponents, layer) {
   if (layer === 0) return "";
   if (layer === 1) return `ω^${exponents}`;
   if (layer === 2) return `ω^(ω^${exponents})`;
   return `ω^(${exponents})`;
 };
-
+P.toJSON=function (){
+  if (MetaNum.serializeMode==MetaNum.JSON){
+    return {
+      sign:this.sign,
+      layer:this.layer,
+      array:this.array.slice(0),
+      brrby:this.brrby.slice(0),
+      crrcy:this.crrcy.slice(0),
+      drrdy:this.drrdy.slice(0)
+    };
+  }
+  else if (MetaNum.serializeMode==MetaNum.STRING){
+    return this.toString();
+  }
+};
+P.toHyperE=function (){
+  if (this.sign==-1) return "-"+this.abs().toHyperE();
+  if (isNaN(this.array)) return "NaN";
+  if (!isFinite(this.array)) return "Infinity";
+  if (this.lt(MetaNum.MAX_SAFE_INTEGER)) return String(this.array);
+  if (this.lt(MetaNum.E_MAX_SAFE_INTEGER)) return "E"+this.array;
+  var r="E"+this.array+"#"+this.brrby[0];
+  for (var i=2;i<this.brrby.length-1;++i){
+    r+="#"+(this.brrby[i-1]+1);
+  }
+  return r;
+};
 Q.fromNumber = function(input) {
   if (typeof input!="number") throw Error(invalidArgument+"Expected Number");
   var x=new MetaNum();
@@ -1152,7 +1212,6 @@ Q.fromNumber = function(input) {
   if (MetaNum.debug >= MetaNum.ALL) console.log(input+"fromNumber->",x);
   return x;
 };
-
 Q.fromString = function(input) {
   // MetaNum中最果糕的函数之二
   var x = new MetaNum();
@@ -1184,11 +1243,11 @@ Q.fromString = function(input) {
     return x;
   }
   
-  // 情况2：数字y + E + 数字z（无前导E）
-  if (/^(\d+)E(-?\d+(\.\d+)?)$/.test(input)) {
-    var match2 = input.match(/^(\d+)E(-?\d+(\.\d+)?)$/);
+  // 情况2：数字y + E/e + 数字z（无前导E）
+  if (/^(\d+)([Ee])(-?\d+(\.\d+)?)$/.test(input)) {
+    var match2 = input.match(/^(\d+)([Ee])(-?\d+(\.\d+)?)$/);
     var yVal = parseFloat(match2[1]);
-    var zVal = parseFloat(match2[2]);
+    var zVal = parseFloat(match2[3]);
     x.layer = 1;
     x.array = zVal + Math.log10(yVal);
     x.brrby = [1];
@@ -1196,12 +1255,12 @@ Q.fromString = function(input) {
     return x;
   }
   
-  // 情况2b：x个E/e（x>=1）+ 数字y + E + 数字z
-  if (/^([Ee]+)(\d+)E(-?\d+(\.\d+)?)$/.test(input)) {
-    var match2b = input.match(/^([Ee]+)(\d+)E(-?\d+(\.\d+)?)$/);
+  // 情况2b：x个E/e（x>=1）+ 数字y + E/e + 数字z
+  if (/^([Ee]+)(\d+)([Ee])(-?\d+(\.\d+)?)$/.test(input)) {
+    var match2b = input.match(/^([Ee]+)(\d+)([Ee])(-?\d+(\.\d+)?)$/);
     var xCount = match2b[1].length;
     var yVal2 = parseFloat(match2b[2]);
-    var zVal2 = parseFloat(match2b[3]);
+    var zVal2 = parseFloat(match2b[4]);
     x.layer = 1;
     x.array = zVal2 + Math.log10(yVal2);
     x.brrby = [xCount + 1];
@@ -1258,12 +1317,12 @@ Q.fromString = function(input) {
     return x;
   }
   
-  // 情况4：数字y + E + 数字z + F + 数字w
-  if (/^(\d+)E(\d+)F(\d+)$/.test(input)) {
-    var match4 = input.match(/^(\d+)E(\d+)F(\d+)$/);
+  // 情况4：数字y + E/e + 数字z + F + 数字w
+  if (/^(\d+)([Ee])(\d+)F(\d+)$/.test(input)) {
+    var match4 = input.match(/^(\d+)([Ee])(\d+)F(\d+)$/);
     var mixYVal = parseFloat(match4[1]);
-    var mixZVal = parseFloat(match4[2]);
-    var mixWVal = parseFloat(match4[3]);
+    var mixZVal = parseFloat(match4[3]);
+    var mixWVal = parseFloat(match4[4]);
     x.layer = 1;
     x.array = mixWVal + Math.log10(mixZVal);
     x.brrby = [1, mixYVal + 1];
@@ -1271,13 +1330,13 @@ Q.fromString = function(input) {
     return x;
   }
   
-  // 情况4b：x个E/e + 数字y + E + 数字z + F + 数字w
-  if (/^([Ee]+)(\d+)E(\d+)F(\d+)$/.test(input)) {
-    var match4b = input.match(/^([Ee]+)(\d+)E(\d+)F(\d+)$/);
+  // 情况4b：x个E/e + 数字y + E/e + 数字z + F + 数字w
+  if (/^([Ee]+)(\d+)([Ee])(\d+)F(\d+)$/.test(input)) {
+    var match4b = input.match(/^([Ee]+)(\d+)([Ee])(\d+)F(\d+)$/);
     var mixXCount = match4b[1].length;
     var mixYVal2 = parseFloat(match4b[2]);
-    var mixZVal2 = parseFloat(match4b[3]);
-    var mixWVal2 = parseFloat(match4b[4]);
+    var mixZVal2 = parseFloat(match4b[4]);
+    var mixWVal2 = parseFloat(match4b[5]);
     x.layer = 1;
     x.array = mixWVal2 + Math.log10(mixZVal2);
     x.brrby = [mixXCount + 1, mixYVal2 + 1];
@@ -1311,7 +1370,32 @@ Q.fromString = function(input) {
   x.normalize();
   return x;
 };
-
+Q.fromArray=function (input1,input2,input3,input4,input5,input6){
+  var x=new MetaNum();
+  x.sign=input1;
+  x.layer=input2;
+  x.array=input3;
+  x.brrby=input4;
+  x.crrcy=input5;
+  x.drrdy=input6;
+  x.normalize();
+  return x;
+}
+Q.fromObject=function (input){
+  var x=new MetaNum();
+  x.sign=input.sign;
+  x.layer=input.layer;
+  x.array=input.array;
+  x.brrby=input.brrby;
+  x.crrcy=input.crrcy;
+  x.drrdy=input.drrdy;
+  x.normalize();
+  return x;
+}
+Q.fromJSON=function (input){
+  var obj=JSON.parse(input);
+  return Q.fromObject(obj);
+}
 P.clone = function() {
   var temp = new MetaNum();
   temp.sign = this.sign;
@@ -1326,232 +1410,78 @@ P.clone = function() {
 
 // region toglobalscope
   function clone(obj) {
-    function MetaNum(sign, layer, array, brrby, crrcy, drrdy) {
-      var x = this;
-      if (!(x instanceof MetaNum)) return new MetaNum(sign, layer, array, brrby, crrcy, drrdy);
-      x.constructor = MetaNum;
-      
-      var temp;
-      
-      if (typeof sign === "number" && typeof layer === "undefined") {
-        temp = {sign: sign < 0 ? -1 : 1, layer: 0, array: Math.abs(sign), brrby: [0], crrcy: [[0]], drrdy: [[[0]]]};
-      } else if (typeof sign === "bigint") {
-        temp = {sign: sign < 0n ? -1 : 1, layer: 0, array: Number(sign), brrby: [0], crrcy: [[0]], drrdy: [[[0]]]};
-      } else if (typeof sign === "string" && (sign[0] == "[" || sign[0] == "{")) {
+    var i, p, ps;
+    function MetaNum(input) {
+      var x=this;
+      if (!(x instanceof MetaNum)) return new MetaNum(input);
+      x.constructor=MetaNum;
+      /*
+      var parsedObject=null;
+      if (typeof input=="string"&&(input[0]=="["||input[0]=="{")){
         try {
-          var parsed = JSON.parse(sign);
-          temp = parsed;
-          temp.brrby = _validateBrrby(temp.brrby || []);
-          temp.crrcy = _validateCrrcy(temp.crrcy || []);
-          temp.drrdy = _validateDrrdy(temp.drrdy || []);
-        } catch (e) {
-          var str = sign;
-          var s = 1;
-          if (str.charAt(0) === '-') {
-            s = -1;
-            str = str.slice(1);
-          }
-          var parsedNum = parseFloat(str);
-          if (/^-?\d+(\.\d+)?([eE]-?\d+)?$/.test(str) && isFinite(parsedNum)) {
-            temp = {sign: s, layer: 0, array: parsedNum, brrby: [0], crrcy: [[0]], drrdy: [[[0]]]};
-          } else {
-            temp = {sign: s, layer: 1, array: 10, brrby: _validateBrrby([1]), crrcy: [[0]], drrdy: [[[0]]]};
-          }
+          parsedObject=JSON.parse(input);
+        }catch(e){
+          console.error("果糕")
         }
-      } else if (typeof sign === "string") {
-        var str = sign.trim();
-        
-        // 检测新格式: "sign, layer, array, brrby, crrcy, drrdy"
-        var isNewFormat = /^\d+\s*,\s*\d+\s*,\s*[\d.eE+-]+\s*,\s*\[/.test(str);
-        
-        if (isNewFormat) {
-          try {
-            var parts = [];
-            var current = '';
-            var depth = 0;
-            
-            for (var i = 0; i < str.length; i++) {
-              var c = str[i];
-              if (c === '[') {
-                depth++;
-                current += c;
-              } else if (c === ']') {
-                depth--;
-                current += c;
-                if (depth === 0) {
-                  if (current.trim()) parts.push(current.trim());
-                  current = '';
-                }
-              } else if (c === ',' && depth === 0) {
-                if (current.trim()) parts.push(current.trim());
-                current = '';
-              } else {
-                current += c;
-              }
-            }
-            if (current.trim()) parts.push(current.trim());
-            
-            if (parts.length >= 3) {
-              var parsedSign = parseInt(parts[0], 10);
-              var parsedLayer = parseInt(parts[1], 10);
-              var parsedArray = parseFloat(parts[2]);
-              var parsedBrrby = JSON.parse(parts[3]);
-              
-              var parsedCrrcy = [[0]];
-              var parsedDrrdy = [[[0]]];
-              
-              if (parsedLayer === 0) {
-                // 使用默认值
-              } else if (parsedLayer === 1) {
-                if (parts[4]) parsedCrrcy = JSON.parse(parts[4]);
-              } else {
-                if (parts[4]) parsedCrrcy = JSON.parse(parts[4]);
-                if (parts[5]) parsedDrrdy = JSON.parse(parts[5]);
-              }
-              
-              temp = {
-                sign: parsedSign,
-                layer: parsedLayer,
-                array: parsedArray,
-                brrby: parsedBrrby,
-                crrcy: parsedCrrcy,
-                drrdy: parsedDrrdy
-              };
-            } else {
-              var parsed = Q.fromString(sign);
-              temp = {
-                sign: parsed.sign,
-                layer: parsed.layer,
-                array: parsed.array,
-                brrby: parsed.brrby,
-                crrcy: parsed.crrcy,
-                drrdy: parsed.drrdy
-              };
-            }
-          } catch (e) {
-            var parsed = Q.fromString(sign);
-            temp = {
-              sign: parsed.sign,
-              layer: parsed.layer,
-              array: parsed.array,
-              brrby: parsed.brrby,
-              crrcy: parsed.crrcy,
-              drrdy: parsed.drrdy
-            };
-          }
-        } else {
-          var parsed = Q.fromString(sign);
-          temp = {
-            sign: parsed.sign,
-            layer: parsed.layer,
-            array: parsed.array,
-            brrby: parsed.brrby,
-            crrcy: parsed.crrcy,
-            drrdy: parsed.drrdy
-          };
-        }
-      } else if (sign instanceof Array || layer instanceof Array) {
-        var arr = sign instanceof Array ? sign : layer;
-        var l = sign instanceof Array ? sign.length : layer.length;
-        var parsedLayer = sign instanceof Array ? (arr.length > 0 && Array.isArray(arr[0]) ? 1 : 0) : (Array.isArray(layer) ? 1 : 0);
-        temp = {
-          sign: 1,
-          layer: parsedLayer,
-          array: 10,
-          brrby: _validateBrrby(arr),
-          crrcy: parsedLayer >= 2 ? _validateCrrcy([]) : [[0]],
-          drrdy: parsedLayer >= 3 ? _validateDrrdy([]) : [[[0]]]
-        };
-      } else if (sign instanceof MetaNum) {
-        temp = {
-          sign: sign.sign,
-          layer: sign.layer,
-          array: sign.array,
-          brrby: sign.brrby,
-          crrcy: sign.crrcy,
-          drrdy: sign.drrdy
-        };
-      } else if (typeof sign === "object") {
-        temp = sign;
-        temp.brrby = _validateBrrby(temp.brrby || []);
-        temp.crrcy = _validateCrrcy(temp.crrcy || []);
-        temp.drrdy = _validateDrrdy(temp.drrdy || []);
-      } else if (typeof sign !== "undefined") {
-        var num = Number(sign);
-        temp = {sign: num < 0 ? -1 : 1, layer: 0, array: Math.abs(num), brrby: [0], crrcy: [[0]], drrdy: [[[0]]]};
-      } else {
-        temp = {sign: 1, layer: 0, array: 0, brrby: [0], crrcy: [[0]], drrdy: [[[0]]]};
       }
-      
-      if (typeof sign === "number" && typeof layer === "number") {
-        temp.sign = sign;
-        temp.layer = layer;
-        temp.array = typeof array === "number" ? array : 10;
-        temp.brrby = brrby ? _validateBrrby(brrby) : [0];
-        temp.crrcy = layer >= 2 ? (crrcy ? _validateCrrcy(crrcy) : [[0]]) : [[0]];
-        temp.drrdy = layer >= 3 ? (drrdy ? _validateDrrdy(drrdy) : [[[0]]]) : [[[0]]];
+      */
+      var temp,temp2,temp3,temp4,temp5,temp6;
+      if (typeof input=="number"){
+        temp=MetaNum.fromNumber(input);
+      }else if (typeof input=="string"){
+        temp=MetaNum.fromString(input);
+      }else if (typeof input == "object" && input instanceof MetaNum) {
+        temp=input.clone();
+      }else{
+        temp=1;
+        temp2=0;
+        temp3=NaN;
+        temp4=[0];
+        temp5=[[0]];
+        temp6=[[[0]]];
       }
-      
-      x.array = temp.array;
-      x.sign = temp.sign;
-      x.layer = temp.layer;
-      x.brrby = temp.brrby;
-      x.crrcy = temp.crrcy;
-      x.drrdy = temp.drrdy;
-      
-      return x;
+      if (typeof temp=="undefined"){
+        x.sign=temp.sign;
+        x.layer=temp.layer;
+        x.array=temp.array;
+        x.brrby=temp.brrby;
+        x.crrcy=temp.crrcy;
+        x.drrdy=temp.drrdy;
+      }else{
+        x.sign=temp;
+        x.layer=temp2;
+        x.array=temp3;
+        x.brrby=temp4;
+        x.crrcy=temp5;
+        x.drrdy=temp6;
+      }
     }
-    
     MetaNum.prototype = P;
-    
+
     MetaNum.JSON = 0;
     MetaNum.STRING = 1;
+
     MetaNum.NONE = 0;
     MetaNum.NORMAL = 1;
     MetaNum.ALL = 2;
+
+    MetaNum.clone = clone;
+    MetaNum.config = MetaNum.set = config
     
-    for (var prop in Q) {
-      if (Q.hasOwnProperty(prop)) {
-        MetaNum[prop] = Q[prop];
+    for (var prop in Q){
+      if (Q.hasOwnProperty(prop)){
+        MetaNum[prop]=Q[prop];
       }
     }
-    
-    for (var constProp in R) {
-      if (R.hasOwnProperty(constProp)) {
-        MetaNum[constProp] = R[constProp];
-      }
-    }
-    
+
     if (obj === void 0) obj = {};
-    
-    var i, p, v;
-    var ps = [
-      'maxOps', 1, Number.MAX_SAFE_INTEGER,
-      'serializeMode', 0, 1,
-      'debug', 0, 2
-    ];
-    
-    var defaultConfig = {
-      maxOps: 1000,
-      serializeMode: 0,
-      debug: 0
-    };
-    
-    for (i = 0; i < ps.length;) {
-      if (!obj.hasOwnProperty(p = ps[i++])) {
-        obj[p] = defaultConfig[p];
-      }
+    if (obj) {
+      ps = ['maxOps', 'serializeMode', 'debug'];
+      for (i = 0; i < ps.length;) if (!obj.hasOwnProperty(p = ps[i++])) obj[p] = this[p];
     }
-    
-    // Apply config directly
-    for (i = 0; i < ps.length; i += 3) {
-      if ((v = obj[p = ps[i]]) !== void 0) {
-        if (Math.floor(v) === v && v >= ps[i + 1] && v <= ps[i + 2]) {
-          MetaNum[p] = v;
-        }
-      }
-    }
-    
+
+    MetaNum.config(obj);
+
     return MetaNum;
   }
   
@@ -1572,6 +1502,7 @@ P.clone = function() {
     }
     return obj;
   }
+
   function config(obj){
     if (!obj||typeof obj!=='object') {
       throw Error(MetaNumError+'Object expected');
