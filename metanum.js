@@ -1409,140 +1409,144 @@ P.clone = function() {
 // end region operators
 
 // region toglobalscope
-  function clone(obj) {
-    var i, p, ps;
-    function MetaNum(input) {
-      var x=this;
-      if (!(x instanceof MetaNum)) return new MetaNum(input);
-      x.constructor=MetaNum;
-      /*
-      var parsedObject=null;
-      if (typeof input=="string"&&(input[0]=="["||input[0]=="{")){
-        try {
-          parsedObject=JSON.parse(input);
-        }catch(e){
-          console.error("果糕")
-        }
-      }
-      */
-      var temp,temp2,temp3,temp4,temp5,temp6;
-      if (typeof input=="number"){
-        temp=MetaNum.fromNumber(input);
-      }else if (typeof input=="string"){
-        temp=MetaNum.fromString(input);
-      }else if (typeof input == "object" && input instanceof MetaNum) {
-        temp=input.clone();
-      }else{
-        temp=1;
-        temp2=0;
-        temp3=NaN;
-        temp4=[0];
-        temp5=[[0]];
-        temp6=[[[0]]];
-      }
-      if (typeof temp=="undefined"){
-        x.sign=temp.sign;
-        x.layer=temp.layer;
-        x.array=temp.array;
-        x.brrby=temp.brrby;
-        x.crrcy=temp.crrcy;
-        x.drrdy=temp.drrdy;
-      }else{
-        x.sign=temp;
-        x.layer=temp2;
-        x.array=temp3;
-        x.brrby=temp4;
-        x.crrcy=temp5;
-        x.drrdy=temp6;
+function clone(obj) {
+  var i, p, ps;
+  function MetaNum(input) {
+    var x=this;
+    if (!(x instanceof MetaNum)) return new MetaNum(input);
+    x.constructor=MetaNum;
+    var parsedObject=null;
+    if (typeof input=="string"&&(input[0]=="["||input[0]=="{")){
+      try {
+        parsedObject=JSON.parse(input);
+      }catch(e){
+        console.error("果糕")
       }
     }
-    MetaNum.prototype = P;
-
-    MetaNum.JSON = 0;
-    MetaNum.STRING = 1;
-
-    MetaNum.NONE = 0;
-    MetaNum.NORMAL = 1;
-    MetaNum.ALL = 2;
-
-    MetaNum.clone = clone;
-    MetaNum.config = MetaNum.set = config
-    
-    for (var prop in Q){
-      if (Q.hasOwnProperty(prop)){
-        MetaNum[prop]=Q[prop];
-      }
+    var temp,temp2,temp3,temp4,temp5,temp6;
+    if (typeof input=="number"){
+      temp=MetaNum.fromNumber(input);
+    }else if (typeof input=="string"){
+      temp=MetaNum.fromString(input);
+    }else if (parsedObject){
+      temp=MetaNum.fromObject(parsedObject);
+    }else if (typeof input == "object") {
+      temp=MetaNum.fromObject(input);
+    }else if (input instanceof Array){
+      temp=MetaNum.fromArray(input);
+    }else if (input instanceof MetaNum){
+      temp = input.clone();
+    }else{
+      temp=1;
+      temp2=0;
+      temp3=NaN;
+      temp4=[0];
+      temp5=[[0]];
+      temp6=[[[0]]];
     }
-
-    if (obj === void 0) obj = {};
-    if (obj) {
-      ps = ['maxOps', 'serializeMode', 'debug'];
-      for (i = 0; i < ps.length;) if (!obj.hasOwnProperty(p = ps[i++])) obj[p] = this[p];
+    if (typeof temp2=="undefined"){
+      x.sign=temp.sign;
+      x.layer=temp.layer;
+      x.array=temp.array;
+      x.brrby=temp.brrby;
+      x.crrcy=temp.crrcy;
+      x.drrdy=temp.drrdy;
+    }else{
+      x.sign=temp;
+      x.layer=temp2;
+      x.array=temp3;
+      x.brrby=temp4;
+      x.crrcy=temp5;
+      x.drrdy=temp6;
     }
-
-    MetaNum.config(obj);
-
-    return MetaNum;
   }
+  MetaNum.prototype = P;
+
+  MetaNum.JSON = 0;
+  MetaNum.STRING = 1;
+
+  MetaNum.NONE = 0;
+  MetaNum.NORMAL = 1;
+  MetaNum.ALL = 2;
+
+  MetaNum.clone = clone;
+  MetaNum.config = MetaNum.set = config
   
-  function defineConstants(obj){
-    for (var prop in R){
-      if (R.hasOwnProperty(prop)){
-        if (Object.defineProperty){
-          Object.defineProperty(obj,prop,{
-            configurable: false,
-            enumerable: true,
-            writable: false,
-            value: new MetaNum(R[prop])
-          });
-        }else{
-          obj[prop]=new MetaNum(R[prop]);
-        }
+  for (var prop in Q){
+    if (Q.hasOwnProperty(prop)){
+      MetaNum[prop]=Q[prop];
+    }
+  }
+
+  if (obj === void 0) obj = {};
+  if (obj) {
+    ps = ['maxOps', 'serializeMode', 'debug'];
+    for (i = 0; i < ps.length;) if (!obj.hasOwnProperty(p = ps[i++])) obj[p] = this[p];
+  }
+
+  MetaNum.config(obj);
+
+  return MetaNum;
+}
+
+function defineConstants(obj){
+  for (var prop in R){
+    if (R.hasOwnProperty(prop)){
+      if (Object.defineProperty){
+        Object.defineProperty(obj,prop,{
+          configurable: false,
+          enumerable: true,
+          writable: false,
+          value: new MetaNum(R[prop])
+        });
+      }else{
+        obj[prop]=new MetaNum(R[prop]);
       }
     }
-    return obj;
   }
+  return obj;
+}
 
-  function config(obj){
-    if (!obj||typeof obj!=='object') {
-      throw Error(MetaNumError+'Object expected');
-    }
-    var i,p,v,
-      ps = [
-        'maxOps',1,Number.MAX_SAFE_INTEGER,
-        'serializeMode',0,1,
-        'debug',0,2
-      ];
-    for (i = 0; i < ps.length; i += 3) {
-      if ((v = obj[p = ps[i]]) !== void 0) {
-        if (Math.floor(v) === v && v >= ps[i + 1] && v <= ps[i + 2]) this[p] = v;
-        else throw Error(invalidArgument + p + ': ' + v);
-      }
-    }
-    return this;
+function config(obj){
+  if (!obj||typeof obj!=='object') {
+    throw Error(MetaNumError+'Object expected');
   }
-
-  // Create and configure initial MetaNum constructor.
-  MetaNum=clone(MetaNum);
-  MetaNum=defineConstants(MetaNum);
-  MetaNum['default']=MetaNum.MetaNum=MetaNum;
-
-  // Export.
-  // AMD(Asynchronous Module Definition)
-  if (typeof define == 'function' && define.amd) {
-    define(function () {
-      return MetaNum;
-    });
-  // Node and other environments that support module.exports.
-  } else if (typeof module != 'undefined' && module.exports) {
-    module.exports = MetaNum;
-  // Browser.
-  } else {
-    if (!globalScope) {
-      globalScope = typeof self != 'undefined' && self && self.self == self
-        ? self : Function('return this')();
+  var i,p,v,
+    ps = [
+      'maxOps',1,Number.MAX_SAFE_INTEGER,
+      'serializeMode',0,1,
+      'debug',0,2
+    ];
+  for (i = 0; i < ps.length; i += 3) {
+    if ((v = obj[p = ps[i]]) !== void 0) {
+      if (Math.floor(v) === v && v >= ps[i + 1] && v <= ps[i + 2]) this[p] = v;
+      else throw Error(invalidArgument + p + ': ' + v);
     }
-    globalScope.MetaNum = MetaNum;
   }
+  return this;
+}
+
+// Create and configure initial MetaNum constructor.
+MetaNum=clone(MetaNum);
+MetaNum=defineConstants(MetaNum);
+MetaNum['default']=MetaNum.MetaNum=MetaNum;
+
+// Export.
+// AMD(Asynchronous Module Definition)
+if (typeof define == 'function' && define.amd) {
+  define(function () {
+    return MetaNum;
+  });
+// Node and other environments that support module.exports.
+} else if (typeof module != 'undefined' && module.exports) {
+  module.exports = MetaNum;
+// Browser.
+} else {
+  if (!globalScope) {
+    globalScope = typeof self != 'undefined' && self && self.self == self
+      ? self : Function('return this')();
+  }
+  globalScope.MetaNum = MetaNum;
+}
 // end region toglobalscope
 })(this);
