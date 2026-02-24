@@ -1,6 +1,6 @@
 {
   "name": "metanum",
-  "version": "0.3",
+  "version": "0.4",
   "description": "A javascript library that handles numbers as large as f_ε₀(9e15)",
   "main": "src/metanum.js",
   "scripts": {

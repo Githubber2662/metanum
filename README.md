@@ -1,6 +1,6 @@
 # MetaNum
 
-- MetaNum v0.3 by dlsdl
+- MetaNum v0.4 by dlsdl
 
 A huge number library holding up to X↑↑X&9e15.
 
@@ -126,7 +126,7 @@ Our final notation will look like this:
 
 where [symbol] can be one of the following: empty,!,@,#,$,%,&,……
 
-where [letter] can be one of the following: E,F,G,H,……,Aa,Ab,Ac,……,Bβ,γb,……,Aaa,……
+where [letter] can be one of the following: E,F,G,H,……,Aa,Ab,Ac,……,Ba,Bb,……,Aaa,……
 
 and [number] can be any positive real number (nonintegers included).
 

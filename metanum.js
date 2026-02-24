@@ -1,9 +1,9 @@
-// Author: dlsdl 0.3.0
-// Reconstruct code and correct calculating functions
+// Author: dlsdl 0.4.0
+// Add hyper operations and extend fromString
 // Code snippets and templates from ExpantaNum.js and PowiainaNum.js
 ;(function (globalScope) {
   "use strict";
-  // --  EDITABLE DEFAULTS  -- //
+//region --  EDITABLE DEFAULTS  -- //
   var MetaNum = {
     // The maximum number of operators stored in multi-dimension arrays.
     // If the number of operations exceed the limit, then the least significant operations will be discarded.
@@ -22,7 +22,7 @@
     // ALL    2 Show everything.
     debug: 0
   },
-  // -- END OF EDITABLE DEFAULTS -- //
+// -- END OF EDITABLE DEFAULTS -- //
 
   external = true,
   metaNumError = "[MetaNumError] ",
@@ -174,8 +174,7 @@ P._validateDrrdy=function validateDrrdy(drrdy) {
 }
 // end region validation functions
 
-// region operators
-//1. Basic operators
+//region 1. Basic operators
 P.absoluteValue=P.abs=function() {
   var x=this.clone();
   x.sign=1;
@@ -255,7 +254,7 @@ Q.round=function (x){
   return new MetaNum(x).round();
 };
 
-//2. Comparisons
+//region 2. Comparisons
 /* 通过康托尔范式(cantor normal form, CNF)比较序数
 任何序数α>0，都可以唯一表示为：α1=ω^β1*c1+ω^β2*c2+⋯+ω^βn*cn
 其中：β1>β2>⋯>βn是递减的序数，c1,c2,⋯,cn是非零自然数
@@ -440,7 +439,7 @@ Q.maximum=Q.max=function (x,y){
   return new MetaNum(x).max(y);
 };
 
-//3. Basic calculations
+//region 3. Basic calculations
 P.plus=P.add=function(other) {
   var x=this.clone();
   other=new MetaNum(other);
@@ -666,9 +665,9 @@ Q.naturalLogarithm=Q.log=Q.ln=function (x){
   return new MetaNum(x).ln();
 };
 
-//4. Hyperoperations
+//region 4. Hyperoperations
 //work in progress
-P.tetrate=P.tet=function(other,payload){
+P.tetrate=P.tetr=function(other,payload){
   if (payload===undefined) payload=MetaNum.ONE;
   var t=this.clone();
   other=new MetaNum(other);
@@ -677,15 +676,155 @@ P.tetrate=P.tet=function(other,payload){
   if (MetaNum.debug>=MetaNum.NORMAL) console.log(t+"𝐓"+other);
   var negln;
   if (t.isNaN()||other.isNaN()||payload.isNaN()) return MetaNum.NAN.clone();
-  /*if (other.isInfinite()&&other.sign>0){
+  if (other.isInfinite()&&other.sign>0){
     if (t.gte(Math.exp(1/Math.E))) return OmegaNum.POSITIVE_INFINITY.clone();
-      //Formula for infinite height power tower.
-    negln = t.ln().neg();
-    return negln.lambertw().div(negln);
-  }*/
+    //Formula for infinite height power tower.
+    //negln = t.ln().neg();
+    //return negln.lambertw().div(negln);
+    console.log("infinite tetrate not implemented yet");
+    return MetaNum.E;
+  }
+  if (other.lte(-2)) return MetaNum.NaN.clone();
+  if (t.eq(MetaNum.ZERO)){
+    if (other.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (other.mod(2).eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    return MetaNum.ONE.clone();
+  }
+  if (t.eq(MetaNum.ONE)){
+    if (other.eq(MetaNum.ONE.neg())) return MetaNum.NaN.clone();
+    return MetaNum.ONE.clone();
+  }
+  if (other.eq(MetaNum.ONE.neg())) return MetaNum.ZERO.clone();
+  if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
+  if (other.eq(MetaNum.ONE)) return t;
+  if (other.eq(2)) return t.pow(t);
+  if (t.eq(2)){
+    if (other.eq(3)) return new MetaNum(16);
+    if (other.eq(4)) return new MetaNum(65536);
+  }
+  var m=t.max(other);
+  if (m.gt(MetaNum.PENTATED_MAX_SAFE_INTEGER)) return m;
+  if (m.gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)||other.gt(MetaNum.MAX_SAFE_INTEGER)){
+    if (this.lt(Math.exp(1/Math.E))){
+      //negln = t.ln().neg();
+      //return negln.lambertw().div(negln);
+      console.log("infinite tetrate not implemented yet");
+      return MetaNum.E;
+    }
+    var j=t.slog(10).add(other);
+    j.brrby[1]=(j.brrby[1]||0)+1;
+    j.normalize();
+    return j;
+  }
+  var y=other.toNumber();
+  var f=Math.floor(y);
+  var r=t.pow(y-f);
+  var l=MetaNum.NaN;
+  for (var i=0,m=MetaNum.E_MAX_SAFE_INTEGER;f!==0&&r.lt(m)&&i<100;++i){
+    if (f>0){
+      r=t.pow(r);
+      if (l.eq(r)){
+        f=0;
+        break;
+      }
+      l=r;
+      --f;
+    }else{
+      r=r.logBase(t);
+      if (l.eq(r)){
+        f=0;
+        break;
+      }
+      l=r;
+      ++f;
+    }
+  }
+  if (i==100||this.lt(Math.exp(1/Math.E))) f=0;
+  r.brrby[0]=(r.brrby[0]+f)||f;
+  r.normalize();
+  return r;
+};
+Q.tetrate=Q.tetr=function (x,y,payload){
+  return new MetaNum(x).tet(y,payload);
+};
+P.iteratedlog=P.ilog=function (base,other){
+  if (base===undefined) base=10;
+  if (other===undefined) other=MetaNum.ONE.clone();
+  var t=this.clone();
+  base=new MetaNum(base);
+  other=new MetaNum(other);
+  if (other.eq(MetaNum.ZERO)) return t;
+  if (other.eq(MetaNum.ONE)) return t.logBase(base);
+  return base.tetr(t.slog(base).sub(other));
+};
+Q.iteratedlog=Q.ilog=function (x,y,z){
+  return new MetaNum(x).iteratedlog(y,z);
+};
+P.layeradd=P.ladd=function (other,base){
+  if (base===undefined) base=10;
+  if (other===undefined) other=MetaNum.ONE.clone();
+  var t=this.clone();
+  base=new MetaNum(base);
+  other=new MetaNum(other);
+  return base.tetr(t.slog(base).add(other));
+};
+Q.layeradd=Q.ladd=function (x,y,z){
+  return new MetaNum(x).layeradd(y,z);
+};
+P.slog=function (base){
+  if (base===undefined) base=10;
+  var x=new MetaNum(this);
+  base=new MetaNum(base);
+  if (x.isNaN()||base.isNaN()||x.isInfinite()&&base.isInfinite()) return MetaNum.NaN.clone();
+  if (x.isInfinite()) return x;
+  if (base.isInfinite()) return MetaNum.ZERO.clone();
+  if (x.lt(MetaNum.ZERO)) return MetaNum.ONE.neg();
+  if (x.eq(MetaNum.ONE)) return MetaNum.ZERO.clone();
+  if (x.eq(base)) return MetaNum.ONE.clone();
+  if (base.lt(Math.exp(1/Math.E))){
+    var a=MetaNum.tetr(base,Infinity);
+    if (x.eq(a)) return MetaNum.POSITIVE_INFINITY.clone();
+    if (x.gt(a)) return MetaNum.NaN.clone();
+  }
+  if (x.max(base).gt(PENTATED_MAX_SAFE_INTEGER)){
+    if (x.gt(base)) return x;
+    return MetaNum.ZERO.clone();
+  }
+  if (x.max(base).gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)){
+    if (x.gt(base)){
+      x.brrby[1]--;
+      x.normalize();
+      return x.sub(x.brrby[0]);
+    }
+    return MetaNum.ZERO.clone();
+  }
+  var r=0;
+  var t=(x.brrby[0]||0)-(base.brrby[0]||0);
+  if (t>3){
+    var l=t-3;
+    r+=l;
+    x.brrby[0]=x.brrby[0]-l;
+  }
+  for (var i=0;i<100;++i){
+    if (x.lt(MetaNum.ZERO)){
+      x=MetaNum.pow(base,x);
+      --r;
+    }else if (x.lte(1)){
+      return new MetaNum(r+x.toNumber()-1);
+    }else{
+      ++r;
+      x=MetaNum.logBase(x,base);
+    }
+  }
+  if (x.gt(10))
+  return new MetaNum(r);
+};
+Q.slog=function (x,y){
+  return new MetaNum(x).slog(y);
 };
 
-//5. Conversions
+
+//region 5. Conversions
 P.normalize = function () {
   /* 这是MetaNum中最果糕的函数之一
   输入：任意状态的 MetaNum 对象，输出：规范化后的对象
@@ -885,6 +1024,7 @@ P.normalize = function () {
     }
     //layer=1，当brrby为[0]时，降级为layer=0
     else if(x.layer==1){
+      var i=0;
       if(x.brrby==[0] || !x.brrby.length || !x.brrby){
         x.layer=0;
         b=true;
@@ -893,7 +1033,7 @@ P.normalize = function () {
       while (x.array<MAX_E && x.brrby[0]){
         x.array=Math.pow(10,x.array);
         x.brrby[0]--;
-        if(x.brrby[0]==0) x.layer=0;
+        if(x.brrby==[0]) x.layer=0;
         b=true;
       }
       //当brrby长度大于2且brrby[i-1]为0时，为brrby[i-2]赋值array，array重置为1，brrby[i-1]--
@@ -1241,6 +1381,30 @@ Q.fromString = function(input) {
     x.normalize();
     return x;
   }
+
+  //情况5：G+数字
+  if (/^([Gg]+)(\d+)$/.test(input)) {
+    let match5 = input.match(/^([Gg]+)(\d+)$/);
+    let count = match5[1].length;
+    let num = parseFloat(match5[2]);
+    x.layer = 1;
+    x.array = num;
+    x.brrby = [0, 0, count];
+    x.normalize();
+    return x;
+  }
+
+  //情况6：H+数字
+  if (/^([Hh]+)(\d+)$/.test(input)) {
+    let match6 = input.match(/^([Hh]+)(\d+)$/);
+    let count = match6[1].length;
+    let num = parseFloat(match6[2]);
+    x.layer = 1;
+    x.array = num;
+    x.brrby = [0, 0, 0, count];
+    x.normalize();
+    return x;
+  }
   
   // 科学计数法形式（仅当结果在安全范围内）
   if (/^-?\d+(\.\d+)?[eE]-?\d+$/.test(input)) {
@@ -1258,7 +1422,6 @@ Q.fromString = function(input) {
       x.brrby = [1];
     }
     x.normalize();
-    if (MetaNum.debug >= MetaNum.ALL) console.log(input+"fromString->",x);
     return x;
   }
   
@@ -1266,6 +1429,7 @@ Q.fromString = function(input) {
   x.layer = 0;
   x.array = 0;
   x.normalize();
+      if (MetaNum.debug >= MetaNum.ALL) console.log(input+"fromString->",x);
   return x;
 };
 Q.fromFormat=function (str){
@@ -1327,7 +1491,7 @@ P.clone = function() {
 };
 // end region operators
 
-// region toglobalscope
+//region toglobalscope
 function clone(obj) {
   var i, p, ps;
   function MetaNum(input,input2,input3,input4,input5,input6) {
