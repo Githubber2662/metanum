@@ -12,7 +12,7 @@ MetaNum provides a robust implementation of hierarchical number representation b
 - **level**: Non-negative integer representing the ω exponent tower height
 - **array,brrby,crrcy,drrdy**: 0to3-dimensional arrays where represents operation level in a cantor normal form
 
-Functions are as follows `abs, neg, add, sub, mul, div, rec, pow, pow10, sqrt, cbrt, root, log10, log, cmp, rec, exp, ln, isFinite, isInfinite, isNaN, toString, toNumber, fromString, fromNumber, floor, ceil, round`
+Functions are as follows `abs, neg, add, sub, mul, div, rec, pow, pwb, pow10, sqrt, cbrt, root, log10, log, cmp, rec, exp, ln, tetr, slog, isFinite, isInfinite, isNaN, toString, toNumber, fromString, fromNumber, fromArray, fromFormat, toNumber, toString, floor, ceil, round`
 
 (PS: No release published, so it is not indicative of final product)
 
