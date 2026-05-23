@@ -1,1637 +1,3789 @@
-// Author: dlsdl 0.4.0
-// Add hyper operations and extend fromString
-// Code snippets and templates from ExpantaNum.js and PowiainaNum.js
+//Author: dlsdl v1.0
+//rewritten and add even more hyper operations
+//Code snippets and templates from OmegaNum.js
+
 ;(function (globalScope) {
   "use strict";
-//region --  EDITABLE DEFAULTS  -- //
+
   var MetaNum = {
-    // The maximum number of operators stored in multi-dimension arrays.
-    // If the number of operations exceed the limit, then the least significant operations will be discarded.
-    // This is to prevent long loops and eating away of memory and processing time.
-    // 16 means there are at maximum of 16 elements in each 1D-array, 16 1D-arrays in each 2D-array, etc.
-    // It is not recommended to make this number too big or too small.
-    maxOps: 16,
-    // Specify what format is used when serializing for JSON.stringify
-    // JSON   0 JSON object
-    // STRING 1 String
+    maxRows: 100,
+    maxCols: 100,
+    maxArrow: Number.MAX_SAFE_INTEGER,
     serializeMode: 0,
-    // Deprecated
-    // Level of debug information printed in console
-    // NONE   0 Show no information.
-    // NORMAL 1 Show operations.
-    // ALL    2 Show everything.
     debug: 0
   },
-// -- END OF EDITABLE DEFAULTS -- //
 
   external = true,
+
   metaNumError = "[MetaNumError] ",
   invalidArgument = metaNumError + "Invalid argument: ",
-//isMetaNum = /^[+-]*(Infinity|NaN|[!@#$%&~<>+]?(?:[A-Z][a-z]*\^\d+(?:\s+[A-Z][a-z]*\^\d+)*\s*)?(?:(\d+(?:\.\d*)?|\.\d+)(?:[Ee][+-]*\d+)?)?\s*(0|\d+(?:\.\d*)?|\.\d+))$/,
 
   MAX_SAFE_INTEGER = 9007199254740991,
   MAX_E = Math.log10(MAX_SAFE_INTEGER),
 
-  // Prototype object
   P = {},
-
-  // Static object
   Q = {},
-
-  // Constants object
   R = {};
 
-//region MetaNum Constants
-R.ZERO = 0;
-R.ONE = 1;
-R.E = Math.E;
-R.LN2=Math.LN2;
-R.LN10=Math.LN10;
-R.LOG2E=Math.LOG2E;
-R.LOG10E=Math.LOG10E;
-R.PI = Math.PI;
-R.SQRT1_2=Math.SQRT1_2;
-R.SQRT2=Math.SQRT2;
-R.MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
-R.MIN_SAFE_INTEGER = Number.MIN_SAFE_INTEGER;
-R.NaN = Number.NaN;
-R.NEGATIVE_INFINITY = Number.NEGATIVE_INFINITY;
-R.POSITIVE_INFINITY = Number.POSITIVE_INFINITY;
-R.E_MAX_SAFE_INTEGER="E"+MAX_SAFE_INTEGER;
-R.EE_MAX_SAFE_INTEGER="EE"+MAX_SAFE_INTEGER;
-R.TETRATED_MAX_SAFE_INTEGER="F"+MAX_SAFE_INTEGER;
-R.PENTATED_MAX_SAFE_INTEGER="G"+MAX_SAFE_INTEGER;
-/*
-R.OMEGATED_MAX_SAFE_INTEGER="Aa"+MAX_SAFE_INTEGER;
-R.OMEGAEXPANTED_MAX_SAFE_INTEGER="Ba"+MAX_SAFE_INTEGER;
-R.MEGOTED_MAX_SAFE_INTEGER="Aaa"+MAX_SAFE_INTEGER;
-R.POWIAINATED_MAX_SAFE_INTEGER="Aaaa"+MAX_SAFE_INTEGER;
-R.GODGAH_MAX_SAFE_INTEGER="!Aa"+MAX_SAFE_INTEGER;
-R.GATHOR_MAX_SAFE_INTEGER="@Aa"+MAX_SAFE_INTEGER;
-*/
-/* The Graham's Number, = G^64(4) */
-R.GRAHAMS_NUMBER = "s1 l2 a3638334640023.7783 b[7625597484984, 1, 63] c[[1], [3], [0, 1]] d[[[]]]";
-/* QqQe308 = H_ω^(ω17+16)+ω^(ω17+4)(308) */
-R.QqQe308 = "s1 l2 a308 b[1, 1] c[[4, 17], [16, 17]] d[[[]]]";
-/* MAX_METANUM_VALUE = ε9.007e15 */
-R.MAX_METANUM_VALUE = "s1 l"+ MAX_SAFE_INTEGER + " a" + MAX_SAFE_INTEGER + " b[" + MAX_SAFE_INTEGER + "] c[[ " + MAX_SAFE_INTEGER + " ]] d[[[" + MAX_SAFE_INTEGER + "]]]";
-// end region MetaNum Constants
+  R.ZERO = 0;
+  R.ONE = 1;
+  R.TWO = 2;
+  R.TEN = 10;
+  R.E = Math.E;
+  R.LN2 = Math.LN2;
+  R.LN10 = Math.LN10;
+  R.LOG2E = Math.LOG2E;
+  R.LOG10E = Math.LOG10E;
+  R.PI = Math.PI;
+  R.SQRT1_2 = Math.SQRT1_2;
+  R.SQRT2 = Math.SQRT2;
+  R.MAX_SAFE_INTEGER = MAX_SAFE_INTEGER;
+  R.MIN_SAFE_INTEGER = Number.MIN_SAFE_INTEGER;
+  R.NaN = NaN;
+  R.POSITIVE_INFINITY = Infinity;
+  R.NEGATIVE_INFINITY = -Infinity;
+  R.E_MAX_SAFE_INTEGER = "E" + MAX_SAFE_INTEGER;
+  R.EE_MAX_SAFE_INTEGER = "EE" + MAX_SAFE_INTEGER;
+  R.TETRATED_MAX_SAFE_INTEGER = "F" + MAX_SAFE_INTEGER;
+  R.PENTATED_MAX_SAFE_INTEGER = "G" + MAX_SAFE_INTEGER;
+  R.TRITRI = "[[3638334640023.7783, 7625597484984]]";
+  R.GRAHAMS_NUMBER = "[[3638334640023.7783, 7625597484984, 0, 1],[63,0,1]]";//对3↑↑↑↑3(≈GE^7625597484984 3638334640023.7783)做63次ω级运算
+  R.QqQe308 = "QqQe308";
 
-//region Validation functions
-P._validateSign=function validateSign(sign) {
-  if (sign !== 1 && sign !== -1) {
-    throw new Error('Sign must be 1 or -1');
-  }
-  return sign;
-}
-
-P._validateLayer=function validateLayer(layer) {
-  const numLayer = Number(layer);
-  if (!Number.isInteger(numLayer) || numLayer < 0) {
-    throw new Error('Layer must be a non-negative integer');
-  }
-  return numLayer;
-}
-
-P._validateArray=function validateArray(array) {
-  const num = Number(array);
-  if (num < 0) {
-    throw new Error('Array must be a non-negative number');
-  }
-  return num;
-}
-
-P._validateBrrby=function validateBrrby(brrby) {
-  if (!Array.isArray(brrby)) {
-    throw new Error('Brrby must be an array');
-  }
-  if (brrby.length === 0) {
-    return [0];
-  }
-  return brrby.map(val => {
-    const num = Number(val);
-    if (!Number.isInteger(num) || num < 0) {
-      throw new Error('Brrby elements must be non-negative integers');
+  function cmpArr(a, b) {
+    var al = a.length;
+    while (al > 0 && a[al - 1] === 0) al--;
+    var bl = b.length;
+    while (bl > 0 && b[bl - 1] === 0) bl--;
+    if (al !== bl) return al > bl ? 1 : -1;
+    for (var i = al - 1; i >= 0; i--) {
+      if (a[i] > b[i]) return 1;
+      if (a[i] < b[i]) return -1;
     }
-    return num;
-  });
-}
+    return 0;
+  }
 
-P._validateCrrcy=function validateCrrcy(crrcy) {
-  if (!Array.isArray(crrcy)) {
-    throw new Error('Crrcy must be a 2-dimensional array');
-  }
-  if (crrcy.length === 0) {
-    return [[0]];
-  }
-  return crrcy.map(subArray => {
-    if (!Array.isArray(subArray)) {
-      throw new Error('Crrcy elements must be arrays');
+  function isZeroArr(arr) {
+    if (!arr || arr.length === 0) return true;
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] !== 0) return false;
     }
-    if (subArray.length === 0) {
-      return [0];
-    }
-    return subArray.map(val => {
-      const num = Number(val);
-      if (!Number.isInteger(num) || num < 0) {
-        throw new Error('Crrcy elements must be non-negative integers');
-      }
-      return num;
-    });
-  });
-}
+    return true;
+  }
 
-P._validateDrrdy=function validateDrrdy(drrdy) {
-  if (!Array.isArray(drrdy)) {
-    throw new Error('Drrdy must be a 3-dimensional array');
-  }
-  if (drrdy.length === 0) {
-    return [[[0]]];
-  }
-  return drrdy.map(tier => {
-    if (!Array.isArray(tier)) {
-      throw new Error('Drrdy elements must be 2D arrays');
+  function deepCloneArray(arr) {
+    var result = [];
+    for (var i = 0; i < arr.length; i++) {
+      result[i] = arr[i].slice(0);
     }
-    if (tier.length === 0) {
-      return [[0]];
-    }
-    return tier.map(row => {
-      if (!Array.isArray(row)) {
-        throw new Error('Drrdy 2D elements must be 1D arrays');
-      }
-      if (row.length === 0) {
-        return [0];
-      }
-      return row.map(val => {
-        const num = Number(val);
-        if (!Number.isInteger(num) || num < 0) {
-          throw new Error('Drrdy 1D elements must be non-negative integers');
-        }
-        return num;
-      });
-    });
-  });
-}
-// end region validation functions
-
-//region 1. Basic operators
-P.absoluteValue=P.abs=function() {
-  var x=this.clone();
-  x.sign=1;
-  return x;
-}
-Q.absoluteValue=Q.abs=function() {
-  return new MetaNum(x).abs();
-}
-P.negate=P.neg=function() {
-  var x=this.clone();
-  x.sign=-x.sign;
-  return x;
-}
-Q.negate=Q.neg=function() {
-  return new MetaNum(x).neg();
-}
-P.isPositive=P.ispos=function (){
-  return this.gt(MetaNum.ZERO);
-};
-Q.isPositive=Q.ispos=function (x){
-  return new MetaNum(x).ispos();
-};
-P.isNegative=P.isneg=function (){
-  return this.lt(MetaNum.ZERO);
-};
-Q.isNegative=Q.isneg=function (x){
-  return new MetaNum(x).isneg();
-};
-P.isNaN=function (){
-  return isNaN(this.array);
-};
-Q.isNaN=function (x){
-  return new MetaNum(x).isNaN();
-};
-P.isFinite=function (){
-  return isFinite(this.array);
-};
-Q.isFinite=function (x){
-  return new MetaNum(x).isFinite();
-};
-P.isInfinite=function (){
-  return this.array==Infinity;
-};
-Q.isInfinite=function (x){
-  return new MetaNum(x).isInfinite();
-};
-P.isInteger=P.isint=function (){
-  if (this.sign==-1) return this.abs().isint();
-  if (this.gt(MetaNum.MAX_SAFE_INTEGER)) return true;
-  return Number.isInteger(this.toNumber());
-};
-Q.isInteger=Q.isint=function (x){
-  return new MetaNum(x).isint();
-};
-P.floor=function (){
-  return new MetaNum(x).isint();
-};
-P.floor=function (){
-  if (this.isInteger()) return this.clone();
-  return new MetaNum(Math.floor(this.toNumber()));
-};
-Q.floor=function (x){
-  return new MetaNum(x).floor();
-};
-P.ceiling=P.ceil=function (){
-  if (this.isInteger()) return this.clone();
-  return new MetaNum(Math.ceil(this.toNumber()));
-};
-Q.ceiling=Q.ceil=function (x){
-  return new MetaNum(x).ceil();
-};
-P.round=function (){
-  if (this.isInteger()) return this.clone();
-  return new MetaNum(Math.round(this.toNumber()));
-};
-Q.round=function (x){
-  return new MetaNum(x).round();
-};
-
-//region 2. Comparisons
-/* 通过康托尔范式(cantor normal form, CNF)比较序数
-任何序数α>0，都可以唯一表示为：α1=ω^β1*c1+ω^β2*c2+⋯+ω^βn*cn
-其中：β1>β2>⋯>βn是递减的序数，c1,c2,⋯,cn是非零自然数
-设两个康托尔范式序数：α=ω^β1*c1+ω^β2*c2+⋯+ω^βn*cn，γ=ω^δ1*d1+ω^δ2*d2+⋯+ω^δn*dn
-比较最高次项：找到最大的i使得βi≠δi，如果βi>δi，则α>γ；如果βi<δi，则α<γ；
-如果βi=δi，比较系数c1和d1，如果c1>d1，则α>γ；如果c1<d1，则α<γ；如果c1=d1，去掉第一项，递归比较剩余部分
-核心原则：字典序比较，就像比较多项式或字符串一样，从左到右（从高次到低次）逐项比较，第一个不同的位置决定大小关系
-例如：ω^2已经大于任何ω*n+m（无论n,m多大），这反映了序数运算的吸收性质：ω*β会"吸收"所有更小的序数的任意有限组合。
-*/
-// brrby 比较函数
-function brrbyCompare(tb, ob) {
-  // 先比较长度
-  if (tb.length > ob.length) return 1;
-  if (tb.length < ob.length) return -1;
-  // 长度相同，从最后一个元素向前比较
-  for (var i = tb.length - 1; i >= 0; i--) {
-    if (tb[i] > ob[i]) return 1;
-    if (tb[i] < ob[i]) return -1;
+    return result;
   }
-  return 0;
-}
-// crrcy 比较函数
-function crrcyCompare(tc, oc) {
-  // crrcy中任意一个一维数组大的则整体大
-  for (var i = 0; i < tc.length; i++) {
-    for (var j = 0; j < oc.length; j++) {
-      var tRow = tc[i];
-      var oRow = oc[j];
-      // 逐行比较
-      var k = Math.max(tRow.length, oRow.length);
-      for (var idx = 0; idx < k; idx++) {
-        var tVal = idx < tRow.length ? tRow[idx] : 0;
-        var oVal = idx < oRow.length ? oRow[idx] : 0;
-        if (tVal > oVal) return 1;
-        if (tVal < oVal) return -1;
+
+  var debugMessageSent = false;
+
+  var f_gamma = function (n) {
+    if (!isFinite(n)) return n;
+    if (n < -50) {
+      if (n == Math.trunc(n)) return Number.NEGATIVE_INFINITY;
+      return 0;
+    }
+    var scal1 = 1;
+    while (n < 10) {
+      scal1 = scal1 * n;
+      ++n;
+    }
+    n -= 1;
+    var l = 0.9189385332046727;
+    l += (n + 0.5) * Math.log(n);
+    l -= n;
+    var n2 = n * n;
+    var np = n;
+    l += 1 / (12 * np);
+    np *= n2;
+    l -= 1 / (360 * np);
+    np *= n2;
+    l += 1 / (1260 * np);
+    np *= n2;
+    l -= 1 / (1680 * np);
+    np *= n2;
+    l += 1 / (1188 * np);
+    np *= n2;
+    l -= 691 / (360360 * np);
+    np *= n2;
+    l += 7 / (1092 * np);
+    np *= n2;
+    l -= 3617 / (122400 * np);
+    return Math.exp(l) / scal1;
+  };
+
+  var OMEGA = 0.56714329040978387299997;
+
+  var f_lambertw = function (z, tol, principal) {
+    if (tol === undefined) tol = 1e-10;
+    if (principal === undefined) principal = true;
+    var w;
+    if (!Number.isFinite(z)) return z;
+    if (principal) {
+      if (z === 0) return z;
+      if (z === 1) return OMEGA;
+      if (z < 10) w = 0;
+      else w = Math.log(z) - Math.log(Math.log(z));
+    } else {
+      if (z === 0) return -Infinity;
+      if (z <= -0.1) w = -2;
+      else w = Math.log(-z) - Math.log(-Math.log(-z));
+    }
+    for (var i = 0; i < 100; ++i) {
+      var wn = (z * Math.exp(-w) + w * w) / (w + 1);
+      if (Math.abs(wn - w) < tol * Math.abs(wn)) return wn;
+      w = wn;
+    }
+    throw Error("Iteration failed to converge: " + z);
+  };
+
+  var d_lambertw = function (z, tol, principal) {
+    if (tol === undefined) tol = 1e-10;
+    if (principal === undefined) principal = true;
+    z = new MetaNum(z);
+    var w;
+    if (!z.isFinite()) return z;
+    if (principal) {
+      if (z.eq(MetaNum.ZERO)) return z;
+      if (z.eq(MetaNum.ONE)) return new MetaNum(OMEGA);
+      w = MetaNum.ln(z);
+    } else {
+      if (z.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
+      w = MetaNum.ln(z.neg());
+    }
+    for (var i = 0; i < 100; ++i) {
+      var ew = w.neg().exp();
+      var wewz = w.sub(z.mul(ew));
+      var dd = w.add(MetaNum.ONE).sub(w.add(2).mul(wewz).div(MetaNum.mul(2, w).add(2)));
+      if (dd.eq(MetaNum.ZERO)) return w;
+      var wn = w.sub(wewz.div(dd));
+      if (MetaNum.abs(wn.sub(w)).lt(MetaNum.abs(wn).mul(tol))) return wn;
+      w = wn;
+    }
+    throw Error("Iteration failed to converge: " + z);
+  };
+
+  var decimalPlaces = function (value, places) {
+    var len = places + 1;
+    var numDigits = Math.ceil(Math.log10(Math.abs(value)));
+    if (numDigits < 100) numDigits = 0;
+    var rounded = Math.round(value * Math.pow(10, len - numDigits)) * Math.pow(10, numDigits - len);
+    return parseFloat(rounded.toFixed(Math.max(len - numDigits, 0)));
+  };
+
+  var log10PosBigInt = function (input) {
+    var exp = BigInt(64);
+    while (input >= BigInt(1) << exp) exp *= BigInt(2);
+    var expdel = exp / BigInt(2);
+    while (expdel > BigInt(0)) {
+      if (input >= BigInt(1) << exp) exp += expdel;
+      else exp -= expdel;
+      expdel /= BigInt(2);
+    }
+    var cutbits = exp - BigInt(54);
+    var firstbits = input >> cutbits;
+    return Math.log10(Number(firstbits)) + Math.LOG10E / Math.LOG2E * Number(cutbits);
+  };
+
+  var LONG_STRING_MIN_LENGTH = 17;
+
+  var log10LongString = function (str) {
+    return Math.log10(Number(str.substring(0, LONG_STRING_MIN_LENGTH))) + (str.length - LONG_STRING_MIN_LENGTH);
+  };
+
+  P.normalize = function () {
+    var b;
+    var x = this;
+
+    if (!x.array || !Array.isArray(x.array) || x.array.length === 0) {
+      x.array = [[0]];
+    }
+    if (x.sign !== 1 && x.sign !== -1) {
+      x.sign = Number(x.sign) < 0 ? -1 : 1;
+    }
+    if (typeof x.layer !== 'number' || !isFinite(x.layer) || x.layer < 0) {
+      x.layer = 0;
+    }
+    x.layer = Math.floor(x.layer);
+
+    for (var i = 0; i < x.array.length; i++) {
+      if (!Array.isArray(x.array[i])) {
+        x.array[i] = [x.array[i]];
       }
     }
-  }
-  return 0;
-}
-// drrdy 比较函数
-function drrdyCompare(td, od) {
-  // drrdy中任意一个二维数组大的则整体大
-  for (var i = 0; i < td.length; i++) {
-    for (var j = 0; j < od.length; j++) {
-      var tMatrix = td[i];
-      var oMatrix = od[j];
-      // 逐矩阵比较
-      var k = Math.max(tMatrix.length, oMatrix.length);
-      for (var idx = 0; idx < k; idx++) {
-        var tRow = idx < tMatrix.length ? tMatrix[idx] : [];
-        var oRow = idx < oMatrix.length ? oMatrix[idx] : [];
-        // 逐行比较
-        var m = Math.max(tRow.length, oRow.length);
-        for (var idy = 0; idy < m; idy++) {
-          var tVal = idy < tRow.length ? tRow[idy] : 0;
-          var oVal = idy < oRow.length ? oRow[idy] : 0;
-          if (tVal > oVal) return 1;
-          if (tVal < oVal) return -1;
-        }
-      }
-    }
-  }
-  return 0;
-}
-P.compareTo=P.cmp=function(other) {
-  if (!(other instanceof MetaNum)) other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.ALL) console.log('Comparing', this, 'to', other);
-  if (isNaN(this.array) || isNaN(other.array)) return NaN;
-  if (this.array == Infinity && other.array != Infinity) return this.sign;
-  if (this.array != Infinity && other.array == Infinity) return -other.sign;
-  if (this.array == 0 && other.array == 0) return 0;
-  if (this.sign != other.sign) return this.sign;
-  var m=this.sign;
-  var r;
-  if (this.layer>other.layer) r=1;
-  else if (this.layer<other.layer) r=-1;
-  else{
-    //layer=0，array只有一个元素，直接比较array的值
-    if (this.layer == 0){
-      r=this.array>other.array?1:(this.array<other.array?-1:0);
-      if (MetaNum.debug>=MetaNum.ALL) console.log('Layer 0 Comparison Result:', r);
-    }
-    //layer=1，先比较brrby，再比较array
-    else if (this.layer == 1){
-      var bCmp = brrbyCompare(this.brrby, other.brrby);
-      if (bCmp !== 0) {
-        r = bCmp;
-      } else {
-        r=this.array>other.array?1:(this.array<other.array?-1:0);
-      }
-      if (MetaNum.debug>=MetaNum.ALL) console.log('Layer 1 Comparison Result:', r);
-    }
-    //layer=2，先比较crrcy，再比较brrby，最后比较array
-    else if (this.layer == 2){
-      var cCmp = crrcyCompare(this.crrcy, other.crrcy);
-      if (cCmp !== 0) {
-        r = cCmp;
-      } else {
-        var bCmp = brrbyCompare(this.brrby, other.brrby);
-        if (bCmp !== 0) {
-          r = bCmp;
-        } else {
-          r=this.array>other.array?1:(this.array<other.array?-1:0);
-        }
-      }
-      if (MetaNum.debug>=MetaNum.ALL) console.log('Layer 2 Comparison Result:', r);
-    }
-    //layer>=3，先比较drrdy，再比较crrcy，再比较brrby，最后比较array
-    else if (this.layer >= 3){
-      var dCmp = drrdyCompare(this.drrdy, other.drrdy);
-      if (dCmp !== 0) {
-        r = dCmp;
-      } else {
-        var cCmp = crrcyCompare(this.crrcy, other.crrcy);
-        if (cCmp !== 0) {
-          r = cCmp;
-        } else {
-          var bCmp = brrbyCompare(this.brrby, other.brrby);
-          if (bCmp !== 0) {
-            r = bCmp;
-          } else {
-            r=this.array>other.array?1:(this.array<other.array?-1:0);
-          }
-        }
-      }
-      if (MetaNum.debug>=MetaNum.ALL) console.log('Layer >= 3 Comparison Result:', r);
-    }
-    else console.error("😰")
-  }
-  return r*m;
-}
-Q.compare=Q.cmp=function (x,y){
-  return new MetaNum(x).cmp(y);
-};
-P.greaterThan=P.gt=function (other){
-  return this.cmp(other)>0;
-};
-Q.greaterThan=Q.gt=function (x,y){
-  return new MetaNum(x).gt(y);
-};
-P.greaterThanOrEqualTo=P.gte=function (other){
-  return this.cmp(other)>=0;
-};
-Q.greaterThanOrEqualTo=Q.gte=function (x,y){
-  return new MetaNum(x).gte(y);
-};
-P.lessThan=P.lt=function (other){
-  return this.cmp(other)<0;
-};
-Q.lessThan=Q.lt=function (x,y){
-  return new MetaNum(x).lt(y);
-};
-P.lessThanOrEqualTo=P.lte=function (other){
-  return this.cmp(other)<=0;
-};
-Q.lessThanOrEqualTo=Q.lte=function (x,y){
-  return new MetaNum(x).lte(y);
-};
-P.equalsTo=P.equal=P.eq=function (other){
-  return this.cmp(other)===0;
-};
-Q.equalsTo=Q.equal=Q.eq=function (x,y){
-  return new MetaNum(x).eq(y);
-};
-P.notEqualsTo=P.notEqual=P.neq=function (other){
-  return this.cmp(other)!==0;
-};
-Q.notEqualsTo=Q.notEqual=Q.neq=function (x,y){
-  return new MetaNum(x).neq(y);
-};
-P.minimum=P.min=function (other){
-  return this.lt(other)?this.clone():new MetaNum(other);
-};
-Q.minimum=Q.min=function (x,y){
-  return new MetaNum(x).min(y);
-};
-P.maximum=P.max=function (other){
-  return this.gt(other)?this.clone():new MetaNum(other);
-};
-Q.maximum=Q.max=function (x,y){
-  return new MetaNum(x).max(y);
-};
 
-//region 3. Basic calculations
-P.plus=P.add=function(other) {
-  var x=this.clone();
-  other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"+"+other);
-  //特殊值
-  if (x.sign==-1) return x.neg().add(other.neg()).neg();
-  if (other.sign==-1) return x.sub(other.neg());
-  if (x.eq(MetaNum.ZERO)) return other;
-  if (other.eq(MetaNum.ZERO)) return x;
-  if (x.isNaN()||other.isNaN()||x.isInfinite()&&other.isInfinite()&&x.eq(other.neg())) return MetaNum.NAN.clone();
-  if (x.isInfinite()) return x;
-  if (other.isInfinite()) return other;
-  //普通情况
-  var p=x.min(other);
-  var q=x.max(other);
-  var t;
-  //相差超过9e15倍直接返回最大值
-  if (q.gt(MetaNum.E_MAX_SAFE_INTEGER)||q.div(p).gt(MetaNum.MAX_SAFE_INTEGER)) t=q;
-  //layer=0时array直接相加
-  else if (q.layer==0) t=new MetaNum(x.toNumber()+other.toNumber());
-  //layer=1且brrby[0]==1时，array取指数后相加取对数
-  else{
-    var a=p.layer>0?p.array:Math.log10(p.array);
-    t=new MetaNum(a+Math.log10(Math.pow(10,q.array-a)+1));
-    t=t.pwb(10);
-    }
-  p=q=null;
-  return t;
-}
-Q.plus=Q.add=function (x,y){
-  return new MetaNum(x).add(y);
-};
-P.minus=P.sub=function(other) {
-  var x=this.clone();
-  other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"-"+other);
-  if (x.sign==-1) return x.neg().sub(other.neg()).neg();
-  if (other.sign==-1) return x.add(other.neg());
-  if (x.eq(other)) return MetaNum.ZERO.clone();
-  if (other.eq(MetaNum.ZERO)) return x;
-  if (x.isNaN()||other.isNaN()||x.isInfinite()&&other.isInfinite()) return MetaNum.NAN.clone();
-  if (x.isInfinite()) return x;
-  if (other.isInfinite()) return other.neg();
-  var p=x.min(other);
-  var q=x.max(other);
-  var n=other.gt(x);
-  var t;
-  if (q.gt(MetaNum.E_MAX_SAFE_INTEGER)||q.div(p).gt(MetaNum.MAX_SAFE_INTEGER)){
-    t=q;
-    t=n?t.neg():t;
-  }
-  else if (q.layer==0) t=new MetaNum(x.toNumber()-other.toNumber());
-  else{
-    var a=p.layer>0?p.array:Math.log10(p.array);
-    t=new MetaNum(a+Math.log10(Math.pow(10,q.array-a)-1));
-    t=t.pwb(10);
-    t=n?t.neg():t;
-  }
-  p=q=null;
-  return t;
-};
-Q.minus=Q.sub=function (x,y){
-  return new MetaNum(x).sub(y);
-};
-P.times=P.mul=function(other) {
-  var x=this.clone();
-  other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"×"+other);
-  if (x.sign*other.sign==-1) return x.abs().mul(other.abs()).neg();
-  if (x.sign==-1) return x.abs().mul(other.abs());
-  if (x.isNaN()||other.isNaN()||x.eq(MetaNum.ZERO)&&other.isInfinite()||x.isInfinite()&&other.abs().eq(MetaNum.ZERO)) return MetaNum.NAN.clone();
-  if (other.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
-  if (other.eq(MetaNum.ONE)) return x.clone();
-  if (x.isInfinite()) return x;
-  if (other.isInfinite()) return other;
-  if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) return x.max(other);
-  var n=x.toNumber()*other.toNumber();
-  if (n<=MAX_SAFE_INTEGER) return new MetaNum(n);
-  return MetaNum.pow(10,x.log10().add(other.log10()));
-};
-Q.times=Q.mul=function (x,y){
-  return new MetaNum(x).mul(y);
-};
-P.divide=P.div=function(other) {
-  var x=this.clone();
-  other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(x+"÷"+other);
-  if (x.sign*other.sign==-1) return x.abs().div(other.abs()).neg();
-  if (x.sign==-1) return x.abs().div(other.abs());
-  if (x.isNaN()||other.isNaN()||x.isInfinite()&&other.isInfinite()||x.eq(MetaNum.ZERO)&&other.eq(MetaNum.ZERO)) return MetaNum.NAN.clone();
-  if (other.eq(MetaNum.ZERO)) return MetaNum.POSITIVE_INFINITY.clone();
-  if (other.eq(MetaNum.ONE)) return x.clone();
-  if (x.eq(other)) return MetaNum.ONE.clone();
-  if (x.isInfinite()) return x;
-  if (other.isInfinite()) return MetaNum.ZERO.clone();
-  if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) return x.gt(other)?x.clone():MetaNum.ZERO.clone();
-  var n=x.toNumber()/other.toNumber();
-  if (n<=MAX_SAFE_INTEGER) return new MetaNum(n);
-  var pw=MetaNum.pow(10,x.log10().sub(other.log10()));
-  var fp=pw.floor();
-  if (pw.sub(fp).lt(new MetaNum(1e-9))) return fp;
-  return pw;
-};
-Q.divide=Q.div=function (x,y){
-  return new MetaNum(x).div(y);
-};
-P.reciprocate=P.rec=function (){
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"⁻¹");
-  if (this.isNaN()||this.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
-  if (this.abs().gt("2e323")) return MetaNum.ZERO.clone();
-  return new MetaNum(1/this);
-};
-Q.reciprocate=Q.rec=function (x){
-  return new MetaNum(x).rec();
-};
-P.modular=P.mod=function (other){
-  other=new MetaNum(other);
-  if (other.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
-  if (this.sign*other.sign==-1) return this.abs().mod(other.abs()).neg();
-  if (this.sign==-1) return this.abs().mod(other.abs());
-  return this.sub(this.div(other).floor().mul(other));
-};
-Q.modular=Q.mod=function (x,y){
-  return new MetaNum(x).mod(y);
-};
-P.toPower=P.pow=function(other) {
-  other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"↑"+other);
-  if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
-  if (other.eq(MetaNum.ONE)) return this.clone();
-  if (other.lt(MetaNum.ZERO)) return this.pow(other.neg()).rec();
-  if (this.lt(MetaNum.ZERO)&&other.isint()){
-    if (other.mod(2).lt(MetaNum.ONE)) return this.abs().pow(other);
-    return this.abs().pow(other).neg();
-  }
-  if (this.lt(MetaNum.ZERO)) return MetaNum.NAN.clone();
-  if (this.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
-  if (this.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
-  if (this.max(other).gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)) return this.max(other);
-  if (this.eq(10)){
-    if (other.gt(MetaNum.ZERO)){
-      other.layer=1;
-      other.brrby[0]=(other.brrby[0]+1)||1;
-      other.normalize();
-      return other;
-    }
-    else return new MetaNum(Math.pow(10,other.toNumber()));
-  }
-  if (other.lt(MetaNum.ONE)) return this.root(other.rec());
-  var n=Math.pow(this.toNumber(),other.toNumber());
-  if (n<=MAX_SAFE_INTEGER) return new MetaNum(n);
-  return MetaNum.pow(10,this.log10().mul(other));
-};
-Q.toPower=Q.pow=function(x,y) {
-  return new MetaNum(x).pow(y);
-};
-P.powered_by=P.pwb=function(other){
-  return new MetaNum(other).pow(this);
-}
-Q.powered_by=Q.pwb=function(x,y){
-  return new MetaNum(y).pow(x);
-}
-P.exponential=P.exp=function (){
-  return OmegaNum.pow(Math.E,this);
-};
-Q.exponential=Q.exp=function (x){
-  return OmegaNum.pow(Math.E,x);
-};
-P.root=P.roo=function (other){
-  other=new MetaNum(other);
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(this+"√"+other);
-  if (other.eq(MetaNum.ONE)) return this.clone();
-  if (other.lt(MetaNum.ZERO)) return this.root(other.neg()).rec();
-  if (other.lt(MetaNum.ONE)) return this.pow(other.rec());
-  if (this.lt(MetaNum.ZERO)&&other.isint()&&other.mod(2).eq(MetaNum.ONE)) return this.neg().root(other).neg();
-  if (this.lt(MetaNum.ZERO)) return MetaNum.NAN.clone();
-  if (this.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
-  if (this.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
-  if (this.max(other).gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)) return this.gt(other)?this.clone():MetaNum.ZERO.clone();
-  return MetaNum.pow(10,this.log10().div(other));
-};
-Q.root=Q.roo=function (x,y){
-  return new MetaNum(x).root(y);
-};
-P.squareRoot=P.sqrt=function (){
-  return this.root(2);
-};
-Q.squareRoot=Q.sqrt=function (x){
-  return new MetaNum(x).root(2);
-};
-P.cubeRoot=P.cbrt=function (){
-  return this.root(3);
-};
-Q.cubeRoot=Q.cbrt=function (x){
-  return new MetaNum(x).root(3);
-};
-P.generalLogarithm=P.log10=function (){
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log("㏒"+this);
-  var x=this.clone();
-  if (x.lt(MetaNum.ZERO)) return MetaNum.NaN.clone();
-  if (x.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
-  if (x.lte(MetaNum.MAX_SAFE_INTEGER)) return new MetaNum(Math.log10(x.toNumber()));
-  if (!x.isFinite()) return x;
-  if (x.gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)) return x;
-  if (x.brrby[0]>=1) x.brrby[0]--;
-  else x.array=Math.log10(x.array);
-  return x.normalize();
-};
-Q.generalLogarithm=Q.log10=function (x){
-  return new MetaNum(x).log10();
-};
-P.logarithm=P.logBase=function (base){
-  if (base===undefined) base=Math.E;
-  return this.log10().div(MetaNum.log10(base));
-};
-Q.logarithm=Q.logBase=function (x,base){
-  return new MetaNum(x).logBase(base);
-};
-P.naturalLogarithm=P.log=P.ln=function (){
-  return this.logBase(Math.E);
-};
-Q.naturalLogarithm=Q.log=Q.ln=function (x){
-  return new MetaNum(x).ln();
-};
-
-//region 4. Hyperoperations
-//work in progress
-P.tetrate=P.tetr=function(other,payload){
-  if (payload===undefined) payload=MetaNum.ONE;
-  var t=this.clone();
-  other=new MetaNum(other);
-  payload=new MetaNum(payload);
-  if (payload.neq(MetaNum.ONE)) other=other.add(payload.slog(t));
-  if (MetaNum.debug>=MetaNum.NORMAL) console.log(t+"𝐓"+other);
-  var negln;
-  if (t.isNaN()||other.isNaN()||payload.isNaN()) return MetaNum.NAN.clone();
-  if (other.isInfinite()&&other.sign>0){
-    if (t.gte(Math.exp(1/Math.E))) return OmegaNum.POSITIVE_INFINITY.clone();
-    //Formula for infinite height power tower.
-    //negln = t.ln().neg();
-    //return negln.lambertw().div(negln);
-    console.log("infinite tetrate not implemented yet");
-    return MetaNum.E;
-  }
-  if (other.lte(-2)) return MetaNum.NaN.clone();
-  if (t.eq(MetaNum.ZERO)){
-    if (other.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
-    if (other.mod(2).eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
-    return MetaNum.ONE.clone();
-  }
-  if (t.eq(MetaNum.ONE)){
-    if (other.eq(MetaNum.ONE.neg())) return MetaNum.NaN.clone();
-    return MetaNum.ONE.clone();
-  }
-  if (other.eq(MetaNum.ONE.neg())) return MetaNum.ZERO.clone();
-  if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
-  if (other.eq(MetaNum.ONE)) return t;
-  if (other.eq(2)) return t.pow(t);
-  if (t.eq(2)){
-    if (other.eq(3)) return new MetaNum(16);
-    if (other.eq(4)) return new MetaNum(65536);
-  }
-  var m=t.max(other);
-  if (m.gt(MetaNum.PENTATED_MAX_SAFE_INTEGER)) return m;
-  if (m.gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)||other.gt(MetaNum.MAX_SAFE_INTEGER)){
-    if (this.lt(Math.exp(1/Math.E))){
-      //negln = t.ln().neg();
-      //return negln.lambertw().div(negln);
-      console.log("infinite tetrate not implemented yet");
-      return MetaNum.E;
-    }
-    var j=t.slog(10).add(other);
-    j.brrby[1]=(j.brrby[1]||0)+1;
-    j.normalize();
-    return j;
-  }
-  var y=other.toNumber();
-  var f=Math.floor(y);
-  var r=t.pow(y-f);
-  var l=MetaNum.NaN;
-  for (var i=0,m=MetaNum.E_MAX_SAFE_INTEGER;f!==0&&r.lt(m)&&i<100;++i){
-    if (f>0){
-      r=t.pow(r);
-      if (l.eq(r)){
-        f=0;
-        break;
-      }
-      l=r;
-      --f;
-    }else{
-      r=r.logBase(t);
-      if (l.eq(r)){
-        f=0;
-        break;
-      }
-      l=r;
-      ++f;
-    }
-  }
-  if (i==100||this.lt(Math.exp(1/Math.E))) f=0;
-  r.brrby[0]=(r.brrby[0]+f)||f;
-  r.normalize();
-  return r;
-};
-Q.tetrate=Q.tetr=function (x,y,payload){
-  return new MetaNum(x).tet(y,payload);
-};
-P.iteratedlog=P.ilog=function (base,other){
-  if (base===undefined) base=10;
-  if (other===undefined) other=MetaNum.ONE.clone();
-  var t=this.clone();
-  base=new MetaNum(base);
-  other=new MetaNum(other);
-  if (other.eq(MetaNum.ZERO)) return t;
-  if (other.eq(MetaNum.ONE)) return t.logBase(base);
-  return base.tetr(t.slog(base).sub(other));
-};
-Q.iteratedlog=Q.ilog=function (x,y,z){
-  return new MetaNum(x).iteratedlog(y,z);
-};
-P.layeradd=P.ladd=function (other,base){
-  if (base===undefined) base=10;
-  if (other===undefined) other=MetaNum.ONE.clone();
-  var t=this.clone();
-  base=new MetaNum(base);
-  other=new MetaNum(other);
-  return base.tetr(t.slog(base).add(other));
-};
-Q.layeradd=Q.ladd=function (x,y,z){
-  return new MetaNum(x).layeradd(y,z);
-};
-P.slog=function (base){
-  if (base===undefined) base=10;
-  var x=new MetaNum(this);
-  base=new MetaNum(base);
-  if (x.isNaN()||base.isNaN()||x.isInfinite()&&base.isInfinite()) return MetaNum.NaN.clone();
-  if (x.isInfinite()) return x;
-  if (base.isInfinite()) return MetaNum.ZERO.clone();
-  if (x.lt(MetaNum.ZERO)) return MetaNum.ONE.neg();
-  if (x.eq(MetaNum.ONE)) return MetaNum.ZERO.clone();
-  if (x.eq(base)) return MetaNum.ONE.clone();
-  if (base.lt(Math.exp(1/Math.E))){
-    var a=MetaNum.tetr(base,Infinity);
-    if (x.eq(a)) return MetaNum.POSITIVE_INFINITY.clone();
-    if (x.gt(a)) return MetaNum.NaN.clone();
-  }
-  if (x.max(base).gt(PENTATED_MAX_SAFE_INTEGER)){
-    if (x.gt(base)) return x;
-    return MetaNum.ZERO.clone();
-  }
-  if (x.max(base).gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)){
-    if (x.gt(base)){
-      x.brrby[1]--;
-      x.normalize();
-      return x.sub(x.brrby[0]);
-    }
-    return MetaNum.ZERO.clone();
-  }
-  var r=0;
-  var t=(x.brrby[0]||0)-(base.brrby[0]||0);
-  if (t>3){
-    var l=t-3;
-    r+=l;
-    x.brrby[0]=x.brrby[0]-l;
-  }
-  for (var i=0;i<100;++i){
-    if (x.lt(MetaNum.ZERO)){
-      x=MetaNum.pow(base,x);
-      --r;
-    }else if (x.lte(1)){
-      return new MetaNum(r+x.toNumber()-1);
-    }else{
-      ++r;
-      x=MetaNum.logBase(x,base);
-    }
-  }
-  if (x.gt(10))
-  return new MetaNum(r);
-};
-Q.slog=function (x,y){
-  return new MetaNum(x).slog(y);
-};
-
-
-//region 5. Conversions
-P.normalize = function () {
-  /* 这是MetaNum中最果糕的函数之一
-  输入：任意状态的 MetaNum 对象，输出：规范化后的对象
-  1. 清理无效数据（NaN、Infinity、空值）
-  2. 按索引排序
-  3. 合并相同索引
-  4. 处理数值溢出（进位到更高阶）
-  5. 调整 layer 层级
-  6. 补全缺失项
-  7. 优化表示（最小化数组长度）*/
-  // 初始化和基本验证
-  var b;
-  var x = this;
-  if (MetaNum.debug >= MetaNum.ALL) console.log("normalize: " + this);
-  // 空数组处理
-  if (!x.brrby || !x.brrby.length) x.brrby = [0];
-  if (!x.crrcy || !x.crrcy.length) x.crrcy = [[0]];
-  if (!x.drrdy || !x.drrdy.length) x.drrdy = [[[0]]];
-  if (x.array === Infinity || Number.isNaN(x.array)) {
-    return x; //直接返回Nan或Infinity
-  }
-  // 符号处理：确保 sign 只能是 1 或 -1
-  if (x.sign != 1 && x.sign != -1) {
-    if (typeof x.sign != "number") x.sign = Number(x.sign);
-    x.sign = x.sign < 0 ? -1 : 1;
-  }
-  // 层数溢出处理：超过安全整数则设为 Infinity，表示f_ε0_(1e308)则改为MAX_VALUE
-  if (x.layer > MAX_SAFE_INTEGER) {
-    x.array = Infinity;
-    x.brrby = [Infinity];
-    x.crrcy = [[Infinity]];
-    x.drrdy = [[[Infinity]]];
-    return x;
-  }
-  // 层数取整：确保 layer 是整数
-  if (Number.isInteger(x.layer)) x.layer = Math.floor(x.layer);
-  // 数组元素处理特殊值
-  // 处理 brrby（一维数组）
-  if (Array.isArray(x.brrby)) {
-    for (let i = 0; i < x.brrby.length; i++) {
-      let v = x.brrby[i];
-      if (v === null || v === undefined) {
-        x.brrby[i] = 0;
-      } else if (Number.isNaN(v) || v === Infinity) {
-        x.array = v;
+    if (x.array[0] && x.array[0].length > 0) {
+      if (isNaN(x.array[0][0])) {
+        x.array = [[NaN]];
+        x.layer = 0;
         return x;
-      } else {
-        x.brrby[i] = Math.floor(Number(v));
+      }
+      if (!isFinite(x.array[0][0])) {
+        x.array = [[x.array[0][0] === Infinity ? Infinity : -Infinity]];
+        x.layer = 0;
+        return x;
       }
     }
-  }
-  // 处理 crrcy（二维数组）
-  if (Array.isArray(x.crrcy)) {
-    for (let i = 0; i < x.crrcy.length; i++) {
-      let row = x.crrcy[i];
-      if (Array.isArray(row)) {
-        for (let j = 0; j < row.length; j++) {
-          let v = row[j];
-          if (v === null || v === undefined) {
-            row[j] = 0;
-          } else if (Number.isNaN(v) || v === Infinity) {
-            x.array = v;
-            return x;
-          } else {
-            row[j] = Math.floor(Number(v));
+
+    var r0 = x.array[0];
+    for (var i = 0; i < r0.length; i++) {
+      if (r0[i] === null || r0[i] === undefined) {
+        r0[i] = 0;
+        continue;
+      }
+      if (i !== 0 && !Number.isInteger(r0[i])) r0[i] = Math.floor(r0[i]);
+    }
+
+    do {
+      b = false;
+
+      while (r0.length > 1 && r0[r0.length - 1] === 0) {
+        r0.pop();
+        b = true;
+      }
+
+      if (x.layer === 0 && r0[0] > MAX_SAFE_INTEGER) {
+        r0[1] = (r0[1] || 0) + 1;
+        r0[0] = Math.log10(r0[0]);
+        b = true;
+      }
+
+      while (x.layer === 0 && r0.length > 1 && r0[0] < MAX_E && r0[1]) {
+        r0[0] = Math.pow(10, r0[0]);
+        r0[1]--;
+        b = true;
+      }
+
+      for (var i = 1; i < r0.length; i++) {
+        if (r0[i] > MAX_SAFE_INTEGER) {
+          r0[i + 1] = (r0[i + 1] || 0) + 1;
+          r0[0] = r0[i] + 1;
+          for (var j = 1; j <= i; j++) r0[j] = 0;
+          b = true;
+        }
+      }
+
+      while (x.array.length > 1 && isZeroArr(x.array[x.array.length - 1])) {
+        x.array.pop();
+        b = true;
+      }
+
+      if (x.array.length > MetaNum.maxRows) {
+        x.array = x.array.slice(0, MetaNum.maxRows);
+        b = true;
+      }
+
+      for (var i = 0; i < x.array.length; i++) {
+        if (x.array[i].length > MetaNum.maxCols) {
+          x.array[i] = x.array[i].slice(0, MetaNum.maxCols);
+          b = true;
+        }
+      }
+
+      if (x.array.length === 0) {
+        x.array = [[0]];
+        b = true;
+      }
+
+      for (var i = 0; i < x.array.length; i++) {
+        for (var j = 0; j < x.array[i].length; j++) {
+          if (x.array[i][j] === null || x.array[i][j] === undefined) {
+            x.array[i][j] = 0;
+            b = true;
+          }
+          if ((i > 0 || j > 0) && (!isFinite(x.array[i][j]) || isNaN(x.array[i][j]))) {
+            x.array[i][j] = 0;
+            b = true;
           }
         }
       }
-    }
-  }
-  // 处理 drrdy（三维数组）
-  if (Array.isArray(x.drrdy)) {
-    for (let i = 0; i < x.drrdy.length; i++) {
-      let tier = x.drrdy[i];
-      if (Array.isArray(tier)) {
-        for (let j = 0; j < tier.length; j++) {
-          let row = tier[j];
-          if (Array.isArray(row)) {
-            for (let k = 0; k < row.length; k++) {
-              let v = row[k];
-              if (v === null || v === undefined) {
-                row[k] = 0;
-              } else if (Number.isNaN(v) || v === Infinity) {
-                x.array = v;
-                return x;
-              } else {
-                row[k] = Math.floor(Number(v));
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  if (MetaNum.debug >= MetaNum.ALL) console.log("value processed: " + this);
-  // pop brrby 最后为0的元素
-  if(x.layer==1) {while(x.brrby[x.brrby.length-1] == 0) x.brrby.pop();}
-  else if (x.layer==2) {
-    // 移除brrby中所有为0的元素，并移除对应的crrcy元素
-    let newBrrby = [];
-    let newCrrcy = [];
-    for (let i = 0; i < x.brrby.length; i++) {
-      if (x.brrby[i] !== 0) {
-        newBrrby.push(x.brrby[i]);
-        newCrrcy.push(x.crrcy[i] || []);
-      }
-    }
-    x.brrby = newBrrby;
-    x.crrcy = newCrrcy;
-    // 移除crrcy每个子数组中最后为0的元素
-    for (let i = 0; i < x.crrcy.length; i++) {
-      let row = x.crrcy[i];
-      if (Array.isArray(row)) {
+
+      for (var i = 1; i < x.array.length; i++) {
+        var row = x.array[i];
         while (row.length > 0 && row[row.length - 1] === 0) {
           row.pop();
+          b = true;
         }
       }
-    }
-  }
-  else if (x.layer>=3) {
-    // 移除brrby中所有为0的元素，并移除对应的crrcy和drrdy元素
-    let newBrrby = [];
-    let newCrrcy = [];
-    let newDrrdy = [];
-    for (let i = 0; i < x.brrby.length; i++) {
-      if (x.brrby[i] !== 0) {
-        newBrrby.push(x.brrby[i]);
-        newCrrcy.push(x.crrcy[i] || []);
-        newDrrdy.push(x.drrdy[i] || []);
+
+      if (x.array.length > 2) {
+        var rows2plus = x.array.slice(1);
+        rows2plus.sort(function (a, b) { return cmpArr(a, b); });
+        var orderChanged = false;
+        for (var i = 0; i < rows2plus.length; i++) {
+          if (cmpArr(rows2plus[i], x.array[i + 1]) !== 0) {
+            orderChanged = true;
+            break;
+          }
+        }
+        if (orderChanged) {
+          for (var i = 0; i < rows2plus.length; i++) {
+            x.array[i + 1] = rows2plus[i].slice(0);
+          }
+          b = true;
+        }
       }
-    }
-    x.brrby = newBrrby;
-    x.crrcy = newCrrcy;
-    x.drrdy = newDrrdy;
-    // 移除crrcy每个子数组中所有为0的元素
-    for (let i = 0; i < x.crrcy.length; i++) {
-      let row = x.crrcy[i];
-      if (Array.isArray(row)) {
-        x.crrcy[i] = row.filter(val => val !== 0);
-      }
-    }
-    // 移除drrdy每个子二维数组的每个子数组中最后为0的元素
-    for (let i = 0; i < x.drrdy.length; i++) {
-      let tier = x.drrdy[i];
-      if (Array.isArray(tier)) {
-        for (let j = 0; j < tier.length; j++) {
-          let row = tier[j];
-          if (Array.isArray(row)) {
-            while (row.length > 0 && row[row.length - 1] === 0) {
-              row.pop();
-            }
+
+      for (var i = x.array.length - 1; i > 1; i--) {
+        var rowA = x.array[i];
+        var rowB = x.array[i - 1];
+        if (rowA.length === rowB.length && rowA.length >= 2) {
+          var same = true;
+          for (var k = 1; k < rowA.length; k++) {
+            if (rowA[k] !== rowB[k]) { same = false; break; }
+          }
+          if (same) {
+            rowB[0] += rowA[0];
+            x.array.splice(i, 1);
+            b = true;
           }
         }
       }
+
+    } while (b);
+
+    if (!x.array.length || !x.array[0]) {
+      x.array = [[0]];
+      x.sign = 1;
     }
+
+    if (x.array.length === 1 && x.array[0].length === 1 && x.array[0][0] === 0 && x.sign === -1) {
+      x.sign = 1;
+    }
+
+    return x;
+  };
+
+  var standardizeMessageSent = false;
+  P.standardize = function () {
+    if (!standardizeMessageSent) console.warn(metaNumError + "'standardize' method is being deprecated in favor of 'normalize' and will be removed in the future!"), standardizeMessageSent = true;
+    return this.normalize();
+  };
+
+  P.absoluteValue = P.abs = function () {
+    var x = this.clone();
+    x.sign = 1;
+    return x;
+  };
+  Q.absoluteValue = Q.abs = function (x) {
+    return new MetaNum(x).abs();
+  };
+
+  P.negate = P.neg = function () {
+    var x = this.clone();
+    x.sign = x.sign * -1;
+    return x.normalize();
+  };
+  Q.negate = Q.neg = function (x) {
+    return new MetaNum(x).neg();
+  };
+
+  P.compareTo = P.cmp = function (other) {
+    if (!(other instanceof MetaNum)) other = new MetaNum(other);
+
+    if (this.array[0] && isNaN(this.array[0][0])) return NaN;
+    if (other.array[0] && isNaN(other.array[0][0])) return NaN;
+
+    var tInf = this.array[0] && this.array[0][0] === Infinity;
+    var oInf = other.array[0] && other.array[0][0] === Infinity;
+
+    if (tInf && !oInf) return this.sign;
+    if (!tInf && oInf) return -other.sign;
+    if (tInf && oInf) {
+      if (this.sign !== other.sign) return this.sign;
+      return 0;
+    }
+
+    var tAllZero = (this.array.length === 1 && this.array[0].length === 1 && this.array[0][0] === 0);
+    var oAllZero = (other.array.length === 1 && other.array[0].length === 1 && other.array[0][0] === 0);
+    if (tAllZero && oAllZero) return 0;
+
+    if (this.sign !== other.sign) return this.sign;
+
+    var m = this.sign;
+
+    if (this.layer !== other.layer) {
+      return (this.layer > other.layer ? 1 : -1) * m;
+    }
+
+    var tRows = this.array.length;
+    var oRows = other.array.length;
+    while (tRows > 1 && isZeroArr(this.array[tRows - 1])) tRows--;
+    while (oRows > 1 && isZeroArr(other.array[oRows - 1])) oRows--;
+
+    if (tRows !== oRows) return (tRows > oRows ? 1 : -1) * m;
+
+    for (var i = tRows - 1; i >= 0; i--) {
+      var c = cmpArr(this.array[i], other.array[i]);
+      if (c !== 0) return c * m;
+    }
+
+    return 0;
+  };
+  Q.compare = Q.cmp = function (x, y) {
+    return new MetaNum(x).cmp(y);
+  };
+
+  P.greaterThan = P.gt = function (other) {
+    return this.cmp(other) > 0;
+  };
+  Q.greaterThan = Q.gt = function (x, y) {
+    return new MetaNum(x).gt(y);
+  };
+
+  P.greaterThanOrEqualTo = P.gte = function (other) {
+    return this.cmp(other) >= 0;
+  };
+  Q.greaterThanOrEqualTo = Q.gte = function (x, y) {
+    return new MetaNum(x).gte(y);
+  };
+
+  P.lessThan = P.lt = function (other) {
+    return this.cmp(other) < 0;
+  };
+  Q.lessThan = Q.lt = function (x, y) {
+    return new MetaNum(x).lt(y);
+  };
+
+  P.lessThanOrEqualTo = P.lte = function (other) {
+    return this.cmp(other) <= 0;
+  };
+  Q.lessThanOrEqualTo = Q.lte = function (x, y) {
+    return new MetaNum(x).lte(y);
+  };
+
+  P.equalsTo = P.equal = P.eq = function (other) {
+    return this.cmp(other) === 0;
+  };
+  Q.equalsTo = Q.equal = Q.eq = function (x, y) {
+    return new MetaNum(x).eq(y);
+  };
+
+  P.notEqualsTo = P.notEqual = P.neq = function (other) {
+    return this.cmp(other) !== 0;
+  };
+  Q.notEqualsTo = Q.notEqual = Q.neq = function (x, y) {
+    return new MetaNum(x).neq(y);
+  };
+
+  P.minimum = P.min = function (other) {
+    return this.lt(other) ? this.clone() : new MetaNum(other);
+  };
+  Q.minimum = Q.min = function (x, y) {
+    return new MetaNum(x).min(y);
+  };
+
+  P.maximum = P.max = function (other) {
+    return this.gt(other) ? this.clone() : new MetaNum(other);
+  };
+  Q.maximum = Q.max = function (x, y) {
+    return new MetaNum(x).max(y);
+  };
+
+  P.compareTo_tolerance = P.cmp_tolerance = function (other, tolerance) {
+    if (!(other instanceof MetaNum)) other = new MetaNum(other);
+    return this.eq_tolerance(other, tolerance) ? 0 : this.cmp(other);
+  };
+  Q.compare_tolerance = Q.cmp_tolerance = function (x, y, tolerance) {
+    return new MetaNum(x).cmp_tolerance(y, tolerance);
+  };
+
+  P.greaterThan_tolerance = P.gt_tolerance = function (other, tolerance) {
+    if (!(other instanceof MetaNum)) other = new MetaNum(other);
+    return !this.eq_tolerance(other, tolerance) && this.gt(other);
+  };
+  Q.greaterThan_tolerance = Q.gt_tolerance = function (x, y, tolerance) {
+    return new MetaNum(x).gt_tolerance(y, tolerance);
+  };
+
+  P.greaterThanOrEqualTo_tolerance = P.gte_tolerance = function (other, tolerance) {
+    if (!(other instanceof MetaNum)) other = new MetaNum(other);
+    return this.eq_tolerance(other, tolerance) || this.gt(other);
+  };
+  Q.greaterThanOrEqualTo_tolerance = Q.gte_tolerance = function (x, y, tolerance) {
+    return new MetaNum(x).gte_tolerance(y, tolerance);
+  };
+
+  P.lessThan_tolerance = P.lt_tolerance = function (other, tolerance) {
+    if (!(other instanceof MetaNum)) other = new MetaNum(other);
+    return !this.eq_tolerance(other, tolerance) && this.lt(other);
+  };
+  Q.lessThan_tolerance = Q.lt_tolerance = function (x, y, tolerance) {
+    return new MetaNum(x).lt_tolerance(y, tolerance);
+  };
+
+  P.lessThanOrEqualTo_tolerance = P.lte_tolerance = function (other, tolerance) {
+    if (!(other instanceof MetaNum)) other = new MetaNum(other);
+    return this.eq_tolerance(other, tolerance) || this.lt(other);
+  };
+  Q.lessThanOrEqualTo_tolerance = Q.lte_tolerance = function (x, y, tolerance) {
+    return new MetaNum(x).lte_tolerance(y, tolerance);
+  };
+
+  P.equalsTo_tolerance = P.equal_tolerance = P.eq_tolerance = function (other, tolerance) {
+    if (!(other instanceof MetaNum)) other = new MetaNum(other);
+    if (tolerance == null) tolerance = 1e-7;
+    if (this.isNaN() || other.isNaN() || this.isFinite() != other.isFinite()) return false;
+    if (this.sign != other.sign) return false;
+    if (this.layer !== other.layer) return false;
+    var a, b, tR = this.array.length, oR = other.array.length;
+    if (tR <= 1 && oR <= 1) {
+      a = this.array[0] ? this.array[0][0] || 0 : 0;
+      b = other.array[0] ? other.array[0][0] || 0 : 0;
+      return Math.abs(a - b) <= tolerance * Math.max(Math.abs(a), Math.abs(b));
+    }
+    if (Math.abs(tR - oR) > 1) return false;
+    for (var i = Math.max(tR, oR) - 1; i >= 0; i--) {
+      var tRow = this.array[i] || [0];
+      var oRow = other.array[i] || [0];
+      if (cmpArr(tRow, oRow) !== 0) return false;
+    }
+    return true;
+  };
+  Q.equalsTo_tolerance = Q.equal_tolerance = Q.eq_tolerance = function (x, y, tolerance) {
+    return new MetaNum(x).eq_tolerance(y, tolerance);
+  };
+
+  P.notEqualsTo_tolerance = P.notEqual_tolerance = P.neq_tolerance = function (other, tolerance) {
+    return !this.eq_tolerance(other, tolerance);
+  };
+  Q.notEqualsTo_tolerance = Q.notEqual_tolerance = Q.neq_tolerance = function (x, y, tolerance) {
+    return new MetaNum(x).neq_tolerance(y, tolerance);
+  };
+
+  P.isPositive = P.ispos = function () {
+    return this.gt(MetaNum.ZERO);
+  };
+  Q.isPositive = Q.ispos = function (x) {
+    return new MetaNum(x).ispos();
+  };
+
+  P.isNegative = P.isneg = function () {
+    return this.lt(MetaNum.ZERO);
+  };
+  Q.isNegative = Q.isneg = function (x) {
+    return new MetaNum(x).isneg();
+  };
+
+  P.isNaN = function () {
+    return this.array[0] && isNaN(this.array[0][0]);
+  };
+  Q.isNaN = function (x) {
+    return new MetaNum(x).isNaN();
+  };
+
+  P.isFinite = function () {
+    if (!this.array[0]) return true;
+    return isFinite(this.array[0][0]);
+  };
+  Q.isFinite = function (x) {
+    return new MetaNum(x).isFinite();
+  };
+
+  P.isInfinite = function () {
+    return this.array[0] && this.array[0][0] === Infinity;
+  };
+  Q.isInfinite = function (x) {
+    return new MetaNum(x).isInfinite();
+  };
+
+  P.layerUp = function () {
+    var x = this.clone();
+    if (x.isNaN()) return x;
+
+    var actualRows = x.array.length;
+    while (actualRows > 1 && isZeroArr(x.array[actualRows - 1])) actualRows--;
+
+    if (actualRows <= 1) return x;
+
+    var maxRow = x.array[actualRows - 1];
+    x.array[0] = maxRow.slice(0);
+    x.array = [x.array[0]];
+    x.layer++;
+    return x.normalize();
+  };
+  Q.layerUp = function (x) {
+    return new MetaNum(x).layerUp();
+  };
+
+  P.layerDown = function () {
+    var x = this.clone();
+    if (x.isNaN() || x.layer <= 0) return x;
+
+    var hasRowsAfter = false;
+    for (var i = 1; i < x.array.length; i++) {
+      if (!isZeroArr(x.array[i])) {
+        hasRowsAfter = true;
+        break;
+      }
+    }
+
+    if (hasRowsAfter) return x;
+
+    if (x.array.length < 2) x.array.push([0]);
+    x.array[1] = x.array[0].slice(0);
+    x.array[0] = [0];
+    x.layer--;
+    return x.normalize();
+  };
+  Q.layerDown = function (x) {
+    return new MetaNum(x).layerDown();
+  };
+
+  function isSimple(x) {
+    return x.layer === 0 && x.array.length === 1 &&
+           x.array[0].length === 1 && isFinite(x.array[0][0]) &&
+           Math.abs(x.array[0][0]) <= MAX_SAFE_INTEGER;
   }
-  if (MetaNum.debug >= MetaNum.ALL) console.log("pop processed: " + this);
-  // 主循环：排序和规范化
-  do{
-    b = false;  // 重置标志
-    //layer=0，保持原样
-    //layer=1，限制brrby长度
-    if (x.layer<=1) {
-      //限制brrby长度
-      if(x.brrby.length>MetaNum.maxOps) x.brrby.splice(0,x.brrby.length - MetaNum.maxOps);
+
+  function hyperLevel(n, val) {
+    var arr = new Array(n + 1);
+    for (var i = 0; i <= n; i++) arr[i] = 0;
+    arr[0] = val;
+    arr[n] = 1;
+    return new MetaNum([arr]);
+  }
+
+  function hyperLevelSafe(n, val) {
+    var arr = new Array(n + 1);
+    for (var i = 0; i <= n; i++) arr[i] = 0;
+    arr[0] = val;
+    arr[n] = 1;
+    var oldMaxCols = MetaNum.maxCols;
+    MetaNum.maxCols = Math.max(oldMaxCols, n + 1);
+    var r = new MetaNum([arr]);
+    MetaNum.maxCols = oldMaxCols;
+    return r;
+  }
+
+  function addOrdinalRow(metaNum, count, rawLevel) {
+    // Add an ordinal row [count, raw_level] to the MetaNum
+    // If there's already an ordinal row with the same level, merge counts
+    var x = metaNum.clone();
+    if (typeof rawLevel !== 'number' || !isFinite(rawLevel) || rawLevel < 0) {
+      return x;
+    }
+    if (count <= 0) return x;
+    x.layer = Math.max(x.layer, 1);
+    // Try to merge with existing row at the same level
+    for (var i = 1; i < x.array.length; i++) {
+      var row = x.array[i];
+      if (row.length === 2 && row[1] === rawLevel) {
+        row[0] += count;
+        return x;
+      }
+    }
+    if (x.array.length < MetaNum.maxRows) {
+      x.array.push([count, rawLevel]);
+    }
+    return x;
+  }
+
+  P.plus = P.add = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+
+    if (x.sign === -1) return x.neg().add(other.neg()).neg();
+    if (other.sign === -1) return x.sub(other.neg());
+    if (x.eq(MetaNum.ZERO)) return other;
+    if (other.eq(MetaNum.ZERO)) return x;
+    if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
+    if (x.isInfinite() && other.isInfinite() && x.eq(other.neg())) return MetaNum.NaN.clone();
+    if (x.isInfinite()) return x;
+    if (other.isInfinite()) return other;
+
+    var p = x.min(other);
+    var q = x.max(other);
+    var t;
+
+    if (q.gt(MetaNum.E_MAX_SAFE_INTEGER) || q.div(p).gt(MetaNum.MAX_SAFE_INTEGER)) {
+      t = q;
+    } else if (!q.array[0][1]) {
+      t = new MetaNum(x.toNumber() + other.toNumber());
+    } else if (q.array[0][1] === 1) {
+      var a = p.array[0][1] ? p.array[0][0] : Math.log10(p.array[0][0]);
+      t = new MetaNum([a + Math.log10(Math.pow(10, q.array[0][0] - a) + 1), 1]);
+    }
+
+    return t;
+  };
+  Q.plus = Q.add = function (x, y) {
+    return new MetaNum(x).add(y);
+  };
+
+  P.minus = P.sub = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+
+    if (x.sign === -1) return x.neg().sub(other.neg()).neg();
+    if (other.sign === -1) return x.add(other.neg());
+    if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
+    if (x.isInfinite() && other.isInfinite()) return MetaNum.NaN.clone();
+    if (x.isInfinite()) return x;
+    if (other.isInfinite()) return other.neg();
+    if (x.eq(other)) return MetaNum.ZERO.clone();
+    if (other.eq(MetaNum.ZERO)) return x;
+
+    var p = x.min(other);
+    var q = x.max(other);
+    var n = other.gt(x);
+    var t;
+
+    if (q.gt(MetaNum.E_MAX_SAFE_INTEGER) || q.div(p).gt(MetaNum.MAX_SAFE_INTEGER)) {
+      t = q;
+      t = n ? t.neg() : t;
+    } else if (!q.array[0][1]) {
+      t = new MetaNum(x.toNumber() - other.toNumber());
+    } else if (q.array[0][1] === 1) {
+      var a = p.array[0][1] ? p.array[0][0] : Math.log10(p.array[0][0]);
+      t = new MetaNum([a + Math.log10(Math.pow(10, q.array[0][0] - a) - 1), 1]);
+      t = n ? t.neg() : t;
+    }
+
+    return t;
+  };
+  Q.minus = Q.sub = function (x, y) {
+    return new MetaNum(x).sub(y);
+  };
+
+  P.times = P.mul = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+
+    if (x.sign * other.sign === -1) return x.abs().mul(other.abs()).neg();
+    if (x.sign === -1) return x.abs().mul(other.abs());
+    if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
+    if (x.eq(MetaNum.ZERO) && other.isInfinite()) return MetaNum.NaN.clone();
+    if (x.isInfinite() && other.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (other.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (other.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (x.eq(MetaNum.ONE)) return other.clone();
+    if (x.isInfinite()) return x;
+    if (other.isInfinite()) return other;
+
+    if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) return x.max(other);
+
+    var n = x.toNumber() * other.toNumber();
+    if (n <= MAX_SAFE_INTEGER) return new MetaNum(n);
+    return MetaNum.pow(10, x.log10().add(other.log10()));
+  };
+  Q.times = Q.mul = function (x, y) {
+    return new MetaNum(x).mul(y);
+  };
+
+  P.divide = P.div = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+
+    if (x.sign * other.sign === -1) return x.abs().div(other.abs()).neg();
+    if (x.sign === -1) return x.abs().div(other.abs());
+    if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
+    if (x.isInfinite() && other.isInfinite()) return MetaNum.NaN.clone();
+    if (x.eq(MetaNum.ZERO) && other.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (other.eq(MetaNum.ZERO)) return MetaNum.POSITIVE_INFINITY.clone();
+    if (other.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(other)) return MetaNum.ONE.clone();
+    if (x.isInfinite()) return x;
+    if (other.isInfinite()) return MetaNum.ZERO.clone();
+
+    if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) return x.gt(other) ? x.clone() : MetaNum.ZERO.clone();
+
+    var n = x.toNumber() / other.toNumber();
+    if (n <= MAX_SAFE_INTEGER) return new MetaNum(n);
+    var pw = MetaNum.pow(10, x.log10().sub(other.log10()));
+    var fp = pw.floor();
+    if (pw.sub(fp).lt(new MetaNum(1e-9))) return fp;
+    return pw;
+  };
+  Q.divide = Q.div = function (x, y) {
+    return new MetaNum(x).div(y);
+  };
+
+  P.reciprocate = P.rec = function () {
+    if (this.isNaN()) return MetaNum.NaN.clone();
+    if (this.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (this.isInfinite()) return MetaNum.ZERO.clone();
+    if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return MetaNum.ZERO.clone();
+    return new MetaNum(1 / this.array[0][0]);
+  };
+  Q.reciprocate = Q.rec = function (x) {
+    return new MetaNum(x).rec();
+  };
+
+  P.toPower = P.pow = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+    if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
+    if (x.sign === -1) return this.abs().pow(other).mul(MetaNum.fromNumber(-1).pow(other));
+    if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
+    if (x.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
+    if (other.eq(MetaNum.ONE)) return x.clone();
+    if (x.isInfinite() || other.isInfinite()) return x;
+    if (isSimple(x) && isSimple(other)) {
+      var powVal = Math.pow(x.array[0][0], other.array[0][0]);
+      if (Number.isFinite(powVal) && Math.abs(powVal) <= MAX_SAFE_INTEGER) return new MetaNum(powVal);
+    }
+    if (x.eq(MetaNum.TEN)) {
+      if (other.layer > 0 || other.array.length > 1) return other;
+      var newRow0 = other.array[0].slice(0);
+      newRow0[1] = (newRow0[1] || 0) + 1;
+      return new MetaNum(newRow0);
+    }
+    return MetaNum.pow(10, x.log10().mul(other));
+  };
+  Q.toPower = Q.pow = function (x, y) {
+    return new MetaNum(x).pow(y);
+  };
+
+  P.exponential = P.exp = function () {
+    if (this.isNaN()) return MetaNum.NaN.clone();
+    if (this.sign === -1) return this.abs().exp().rec();
+    if (isSimple(this)) {
+      var ev = Math.exp(this.array[0][0]);
+      if (Number.isFinite(ev) && Math.abs(ev) <= MAX_SAFE_INTEGER) return new MetaNum(ev);
+    }
+    return this;
+  };
+  Q.exponential = Q.exp = function (x) {
+    return new MetaNum(x).exp();
+  };
+
+  P.squareRoot = P.sqrt = function () {
+    if (this.isNaN() || this.sign === -1) return MetaNum.NaN.clone();
+    if (this.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (isSimple(this)) return new MetaNum(Math.sqrt(this.array[0][0]));
+    return this;
+  };
+  Q.squareRoot = Q.sqrt = function (x) {
+    return new MetaNum(x).sqrt();
+  };
+
+  P.cubeRoot = P.cbrt = function () {
+    if (this.isNaN()) return MetaNum.NaN.clone();
+    if (this.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (this.sign === -1) return this.abs().cbrt().neg();
+    if (isSimple(this)) return new MetaNum(Math.cbrt(this.array[0][0]));
+    return this;
+  };
+  Q.cubeRoot = Q.cbrt = function (x) {
+    return new MetaNum(x).cbrt();
+  };
+
+  P.root = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+    if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
+    if (x.isInfinite()) return x;
+    if (other.eq(MetaNum.ZERO)) return MetaNum.POSITIVE_INFINITY.clone();
+    if (x.sign === -1 && other.mod(2).eq(MetaNum.ONE)) return x.abs().root(other).neg();
+    if (isSimple(x) && isSimple(other)) return new MetaNum(Math.pow(x.array[0][0], 1 / other.array[0][0]));
+    return x;
+  };
+  Q.root = function (x, y) {
+    return new MetaNum(x).root(y);
+  };
+
+  P.generalLogarithm = P.log10 = function () {
+    if (this.isNaN() || this.sign === -1) return MetaNum.NaN.clone();
+    if (this.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
+    if (this.isInfinite()) return this;
+    if (isSimple(this)) {
+      var lv = Math.log10(this.array[0][0]);
+      if (Number.isFinite(lv)) return new MetaNum(lv);
+    }
+    if (this.layer === 0 && this.array.length === 1 && this.array[0].length > 1) {
+      var r0 = this.array[0];
+      if (r0[1] > 0) {
+        var newR0 = r0.slice(0);
+        newR0[1]--;
+        return new MetaNum(newR0);
+      }
+      return this;
+    }
+    return this;
+  };
+  Q.generalLogarithm = Q.log10 = function (x) {
+    return new MetaNum(x).log10();
+  };
+
+  P.logarithm = P.logBase = P.log = function (base) {
+    var x = this.clone();
+    if (x.isNaN() || x.sign === -1) return MetaNum.NaN.clone();
+    base = new MetaNum(base);
+    if (base.isNaN() || base.eq(MetaNum.ZERO) || base.eq(MetaNum.ONE)) return MetaNum.NaN.clone();
+    if (x.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
+    if (x.eq(MetaNum.ONE)) return MetaNum.ZERO.clone();
+    if (isSimple(x) && isSimple(base)) {
+      var lv = Math.log(x.array[0][0]) / Math.log(base.array[0][0]);
+      if (Number.isFinite(lv)) return new MetaNum(lv);
+    }
+    return x.log10().div(base.log10());
+  };
+  Q.logarithm = Q.logBase = Q.log = function (x, base) {
+    return new MetaNum(x).logBase(base);
+  };
+
+  P.naturalLogarithm = P.ln = function () {
+    if (this.isNaN() || this.sign === -1) return MetaNum.NaN.clone();
+    if (this.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
+    if (this.isInfinite()) return this;
+    if (isSimple(this)) {
+      var lv = Math.log(this.array[0][0]);
+      if (Number.isFinite(lv)) return new MetaNum(lv);
+    }
+    return this.log10().div(new MetaNum(Math.LOG10E));
+  };
+  Q.naturalLogarithm = Q.ln = function (x) {
+    return new MetaNum(x).ln();
+  };
+
+  P.modular = P.mod = function (other) {
+    other = new MetaNum(other);
+    if (other.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (this.sign * other.sign === -1) return this.abs().mod(other.abs()).neg();
+    if (this.sign === -1) return this.abs().mod(other.abs());
+    return this.sub(this.div(other).floor().mul(other));
+  };
+  Q.modular = Q.mod = function (x, y) {
+    return new MetaNum(x).mod(y);
+  };
+
+  P.gamma = function () {
+    if (this.sign === -1) return MetaNum.NaN.clone();
+    if (this.isNaN() || this.isInfinite()) return this.clone();
+    if (isSimple(this)) {
+      if (Number.isInteger(this.array[0][0]) && this.array[0][0] >= 0 && this.array[0][0] <= 100) {
+        var f = 1;
+        for (var i = 2; i < this.array[0][0]; i++) f *= i;
+        return new MetaNum(f);
+      }
+      var g = f_gamma(this.array[0][0]);
+      if (Number.isFinite(g) && Math.abs(g) <= MAX_SAFE_INTEGER) return new MetaNum(g);
+    }
+    return this;
+  };
+  Q.gamma = function (x) {
+    return new MetaNum(x).gamma();
+  };
+
+  P.factorial = P.fact = function () {
+    if (this.isNaN() || this.isInfinite()) return this;
+    if (this.sign === -1) return this.abs().fact().neg();
+    if (isSimple(this)) {
+      if (Number.isInteger(this.array[0][0]) && this.array[0][0] >= 0 && this.array[0][0] <= 20) {
+        var f = 1;
+        for (var i = 2; i <= this.array[0][0]; i++) f *= i;
+        return new MetaNum(f);
+      }
+      var fa = f_gamma(this.array[0][0] + 1);
+      if (Number.isFinite(fa) && Math.abs(fa) <= MAX_SAFE_INTEGER) return new MetaNum(fa);
+    }
+    return this;
+  };
+  Q.factorial = Q.fact = function (x) {
+    return new MetaNum(x).fact();
+  };
+
+  P.lambertw = function (tol, principal) {
+    if (tol === undefined) tol = 1e-10;
+    if (principal === undefined) principal = true;
+    if (this.isNaN()) return MetaNum.NaN.clone();
+    if (this.isInfinite()) return this.clone();
+    if (isSimple(this)) {
+      try {
+        return new MetaNum(f_lambertw(this.array[0][0], tol, principal));
+      } catch (e) {
+        return MetaNum.NaN.clone();
+      }
+    }
+    return d_lambertw(this, tol, principal);
+  };
+  Q.lambertw = function (x, tol, principal) {
+    return new MetaNum(x).lambertw(tol, principal);
+  };
+
+  P.floor = function () {
+    if (this.isNaN() || this.isInfinite()) return this.clone();
+    if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return this.clone();
+    return new MetaNum(Math.floor(this.array[0][0]));
+  };
+  Q.floor = function (x) {
+    return new MetaNum(x).floor();
+  };
+
+  P.ceiling = P.ceil = function () {
+    if (this.isNaN() || this.isInfinite()) return this.clone();
+    if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return this.clone();
+    return new MetaNum(Math.ceil(this.array[0][0]));
+  };
+  Q.ceiling = Q.ceil = function (x) {
+    return new MetaNum(x).ceil();
+  };
+
+  P.round = function () {
+    if (this.isNaN() || this.isInfinite()) return this.clone();
+    if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return this.clone();
+    return new MetaNum(Math.round(this.array[0][0]));
+  };
+  Q.round = function (x) {
+    return new MetaNum(x).round();
+  };
+
+  P.isInteger = P.isint = function () {
+    if (this.isNaN() || this.isInfinite()) return false;
+    if (this.sign === -1) return this.abs().isint();
+    if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return true;
+    return Number.isInteger(this.array[0][0]);
+  };
+  Q.isInteger = Q.isint = function (x) {
+    return new MetaNum(x).isint();
+  };
+
+  P.tetrate = P.tetr = function (other, payload) {
+    if (payload === undefined) payload = MetaNum.ONE;
+    var x = this.clone();
+    other = new MetaNum(other);
+    payload = new MetaNum(payload);
+    if (payload.neq(MetaNum.ONE)) other = other.add(payload.slog(x));
+    if (x.isNaN() || other.isNaN() || payload.isNaN()) return MetaNum.NaN.clone();
+    if (other.sign === -1) return MetaNum.NaN.clone();
+    if (other.eq(MetaNum.NEGATIVE_INFINITY)) return MetaNum.ZERO.clone();
+    if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
+    if (other.eq(MetaNum.ONE)) return x.clone();
+    if (other.eq(2)) return x.pow(x);
+    if (x.eq(MetaNum.ZERO)) {
+      if (other.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
+      if (other.mod(2).eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
+      return MetaNum.ZERO.clone();
+    }
+    if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
+    if (x.eq(2)) {
+      if (other.eq(3)) return new MetaNum(16);
+      if (other.eq(4)) return new MetaNum(65536);
+    }
+    if (x.isInfinite() || other.isInfinite()) return x.max(other);
+    var m = x.max(other);
+    if (m.gt(hyperLevel(3, MAX_SAFE_INTEGER))) return m;
+    if (m.gt(MetaNum.TETRATED_MAX_SAFE_INTEGER) || other.gt(MetaNum.MAX_SAFE_INTEGER)) {
+      var j = x.slog(10).add(other);
+      j.array[0][2] = (j.array[0][2] || 0) + 1;
+      j.normalize();
+      return j;
+    }
+    var y = other.toNumber();
+    var f = Math.floor(y);
+    var r = x.pow(y - f);
+    for (var i = 0; f !== 0 && r.lt(MetaNum.E_MAX_SAFE_INTEGER) && i < 100; i++) {
+      if (f > 0) {
+        r = x.pow(r);
+        f--;
+      }
+    }
+    if (i === 100) f = 0;
+    r.array[0][1] = (r.array[0][1] + f) || f;
+    r.normalize();
+    return r;
+  };
+  Q.tetrate = Q.tetr = function (x, y, payload) {
+    return new MetaNum(x).tetr(y, payload);
+  };
+
+  P.iteratedexp = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+    if (other.sign === -1) return MetaNum.ZERO.clone();
+    if (isSimple(x) && isSimple(other) && Number.isInteger(other.array[0][0]) && other.array[0][0] <= 4) {
+      var iv = x.array[0][0];
+      var ic = other.array[0][0];
+      var r = iv;
+      for (var i = 0; i < ic; i++) r = Math.pow(10, r);
+      if (Number.isFinite(r) && Math.abs(r) <= MAX_SAFE_INTEGER) return new MetaNum(r);
+    }
+    return x;
+  };
+  Q.iteratedexp = function (x, y) {
+    return new MetaNum(x).iteratedexp(y);
+  };
+
+  P.iteratedlog = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+    if (other.sign === -1) return MetaNum.POSITIVE_INFINITY.clone();
+    if (other.eq(MetaNum.ZERO)) return x.clone();
+    if (isSimple(x) && isSimple(other) && Number.isInteger(other.array[0][0]) && other.array[0][0] <= 4) {
+      var iv = x.array[0][0];
+      var ic = other.array[0][0];
+      if (ic <= 0) return x.clone();
+      var r = iv;
+      for (var i = 0; i < ic; i++) r = Math.log10(r);
+      return new MetaNum(r);
+    }
+    return x;
+  };
+  Q.iteratedlog = function (x, y) {
+    return new MetaNum(x).iteratedlog(y);
+  };
+
+  P.layeradd = function (other, base) {
+    if (base == null) base = 10;
+    var x = this.clone();
+    other = new MetaNum(other);
+    base = new MetaNum(base);
+    if (x.isNaN() || other.isNaN() || base.isNaN()) return MetaNum.NaN.clone();
+    if (other.eq(MetaNum.ZERO)) return x.clone();
+    if (other.sign === -1) return MetaNum.ZERO.clone();
+    return x.tetr(other).tetr(base).logBase(base);
+  };
+  Q.layeradd = function (x, y, base) {
+    return new MetaNum(x).layeradd(y, base);
+  };
+
+  P.layeradd10 = function (other) {
+    return this.layeradd(other, 10);
+  };
+  Q.layeradd10 = function (x, y) {
+    return new MetaNum(x).layeradd10(y);
+  };
+
+  P.ssqrt = P.ssrt = function () {
+    if (this.sign === -1) return MetaNum.NaN.clone();
+    if (this.isNaN()) return MetaNum.NaN.clone();
+    if (this.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (this.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
+    if (isSimple(this)) {
+      var v = this.array[0][0];
+      if (v > 0 && v < 1) return new MetaNum(v);
+      try {
+        var w = f_lambertw(Math.log(v));
+        if (Number.isFinite(w)) return new MetaNum(Math.exp(w));
+      } catch (e) {}
+    }
+    return this.log10();
+  };
+  Q.ssqrt = Q.ssrt = function (x) {
+    return new MetaNum(x).ssqrt();
+  };
+
+  P.linear_sroot = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+    if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
+    if (x.sign === -1 || other.sign === -1) return MetaNum.NaN.clone();
+    if (other.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (other.eq(MetaNum.ONE)) return x.clone();
+    if (isSimple(x) && isSimple(other) && other.array[0][0] > 1) {
+      var v = x.array[0][0];
+      var n = other.array[0][0];
+      try {
+        var w = f_lambertw((n - 1) * Math.log(v / (n - 1)));
+        if (Number.isFinite(w)) return new MetaNum(Math.exp(w));
+      } catch (e) {}
+    }
+    return x;
+  };
+  Q.linear_sroot = function (x, y) {
+    return new MetaNum(x).linear_sroot(y);
+  };
+
+  P.slog = function (base) {
+    if (base === undefined) base = 10;
+    var x = this.clone();
+    base = new MetaNum(base);
+    if (x.isNaN() || base.isNaN()) return MetaNum.NaN.clone();
+    if (x.sign === -1 || base.sign === -1) return MetaNum.NaN.clone();
+    if (x.eq(MetaNum.ONE)) return MetaNum.ZERO.clone();
+    if (x.lt(MetaNum.ONE)) return MetaNum.fromNumber(-1).add(x.slog(base));
+    var m = x.max(base);
+    if (m.gt(hyperLevel(3, MAX_SAFE_INTEGER))) {
+      if (x.gt(base)) return x.clone();
+      return MetaNum.ZERO.clone();
+    }
+    if (m.gt(MetaNum.TETRATED_MAX_SAFE_INTEGER)) {
+      if (x.gt(base)) {
+        x.array[0][2]--;
+        x.normalize();
+        return x.sub(x.array[0][1] || 0);
+      }
+      return MetaNum.ZERO.clone();
+    }
+    if (isSimple(x) && isSimple(base) && base.array[0][0] > 1) {
+      var v = x.array[0][0];
+      var b = base.array[0][0];
+      if (v <= Math.pow(b, b)) {
+        if (v <= 1) return MetaNum.ZERO.clone();
+        var sl = 0;
+        while (Math.pow(b, b) >= v && sl < 10) {
+          v = Math.log(v) / Math.log(b);
+          sl++;
+          if (v <= 0) break;
+        }
+        if (sl > 0) return new MetaNum(sl + v - 1);
+      }
+    }
+    var r = 0;
+    var t = (x.array[0][1] || 0) - (base.array[0][1] || 0);
+    if (t > 3) {
+      var l = t - 3;
+      r += l;
+      x.array[0][1] = x.array[0][1] - l;
+    }
+    for (var i = 0; i < 100; i++) {
+      if (x.lt(0)) {
+        x = MetaNum.pow(base, x);
+        r--;
+      } else if (x.lte(1)) {
+        return new MetaNum(r + x.array[0][0] - 1);
+      } else {
+        r++;
+        x = x.logBase(base);
+      }
+    }
+    if (x.gt(10)) return new MetaNum(r);
+    return new MetaNum(r + x.array[0][0] - 1);
+  };
+  Q.slog = function (x, base) {
+    return new MetaNum(x).slog(base);
+  };
+
+  P.pentate = P.pent = function (other) {
+    return this.arrow(3)(other);
+  };
+  Q.pentate = Q.pent = function (x, y) {
+    return MetaNum.arrow(x, 3, y);
+  };
+
+  P.arrow = function (arrows) {
+    var t = this.clone();
+    arrows = new MetaNum(arrows);
+    if (!arrows.isint() || arrows.sign === -1) return function () { return MetaNum.NaN.clone(); };
+    if (arrows.eq(MetaNum.ZERO)) return function (other) { return t.mul(other); };
+    if (arrows.eq(MetaNum.ONE)) return function (other) { return t.pow(other); };
+    if (arrows.eq(2)) return function (other) { return t.tetr(other); };
+    return function (other) {
+      other = new MetaNum(other);
+      if (other.sign === -1) return MetaNum.NaN.clone();
+      if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
+      if (other.eq(MetaNum.ONE)) return t.clone();
+      if (other.eq(2)) return t.arrow(arrows.sub(MetaNum.ONE))(t);
+      var arrowsNum = arrows.toNumber();
+      if (!isFinite(arrowsNum)) {
+        // arrows is a huge MetaNum (ω-level): result inherits the largest structure
+        var j = t.max(other).max(arrows).clone();
+        j.layer = 1;
+        j.array.push([1, 0, 1]);
+        j.normalize();
+        return j;
+      }
+      if (arrows.gte(MetaNum.maxArrow)) {
+        // arrows is very large but still a JS number; use approximate overflow
+        var j = t.max(other).clone();
+        j.layer = 1;
+        j.array.push([1, 0, 1]);
+        j.normalize();
+        return j;
+      }
+      if (t.max(other).gt(hyperLevelSafe(arrowsNum + 1, MAX_SAFE_INTEGER))) return t.max(other);
+      if (arrowsNum >= MetaNum.maxCols && t.array.length === 1 && other.array.length === 1) {
+        var a = t.array[0][0];
+        var b = other.array[0][0];
+        if (b >= 2) {
+          var count = b - 2;
+          var baseResult = t.arrow(MetaNum.maxCols - 1)(other);
+          if (arrowsNum === MetaNum.maxCols) {
+            baseResult.array[0][MetaNum.maxCols - 1] = (baseResult.array[0][MetaNum.maxCols - 1] || 0) + count;
+            baseResult.normalize();
+            return baseResult;
+          }
+          if (arrowsNum === MetaNum.maxCols + 1) {
+            baseResult.array[0][MetaNum.maxCols - 1] = (baseResult.array[0][MetaNum.maxCols - 1] || 0) + count;
+            baseResult.normalize();
+            baseResult = addOrdinalRow(baseResult, count, MetaNum.maxCols);
+            baseResult.normalize();
+            return baseResult;
+          }
+          var endLevel = arrowsNum - 1;
+          var startLevel = MetaNum.maxCols;
+          var totalOrdinal = endLevel - startLevel + 1;
+          if (totalOrdinal + 1 <= MetaNum.maxRows) {
+            r = t.arrow(MetaNum.maxCols - 1)(other);
+            for (var lev = startLevel; lev <= endLevel; lev++) {
+              r = addOrdinalRow(r, count, lev);
+            }
+          } else {
+            r = new MetaNum(a);
+            var keepStart = endLevel - MetaNum.maxRows + 2;
+            for (var lev = keepStart; lev <= endLevel; lev++) {
+              r = addOrdinalRow(r, count, lev);
+            }
+          }
+          r.normalize();
+          return r;
+        }
+      }
+      if (t.gt(hyperLevelSafe(arrowsNum, MAX_SAFE_INTEGER)) || other.gt(MetaNum.MAX_SAFE_INTEGER)) {
+        var r;
+        if (t.gt(hyperLevelSafe(arrowsNum, MAX_SAFE_INTEGER))) {
+          r = t.clone();
+          if (arrowsNum < MetaNum.maxCols) {
+            r.array[0][arrowsNum]--;
+          } else {
+            var lastRow = r.array[r.array.length - 1];
+            if (lastRow && lastRow.length >= 2 && typeof lastRow[lastRow.length - 1] === 'number') {
+              lastRow[0] = (lastRow[0] || 0) - 1;
+              if (lastRow[0] <= 0) r.array.pop();
+            }
+          }
+          r.normalize();
+        } else if (t.gt(hyperLevelSafe(arrowsNum - 1, MAX_SAFE_INTEGER))) {
+          if (arrowsNum - 1 < MetaNum.maxCols) {
+            r = new MetaNum(t.array[0][arrowsNum - 1]);
+          } else {
+            r = MetaNum.ZERO.clone();
+          }
+        } else {
+          r = MetaNum.ZERO.clone();
+        }
+        var j = r.add(other);
+        if (arrowsNum < MetaNum.maxCols) {
+          j.array[0][arrowsNum] = (j.array[0][arrowsNum] || 0) + 1;
+        } else {
+          j = addOrdinalRow(j, 1, arrowsNum);
+        }
+        j.normalize();
+        return j;
+      }
+      var y = other.toNumber();
+      var f = Math.floor(y);
+      var arrows_m1 = arrows.sub(MetaNum.ONE);
+      var r = t.arrow(arrows_m1)(y - f);
+      var initFloor = Math.floor(other.toNumber());
+      for (var i = 0; f !== 0 && r.lt(hyperLevelSafe(arrowsNum - 1, MAX_SAFE_INTEGER)) && i < 100; i++) {
+        if (f > 0) {
+          r = t.arrow(arrows_m1)(r);
+          f--;
+        }
+      }
+      if (i === 100) f = 0;
+      if (arrowsNum - 1 < MetaNum.maxCols) {
+        if (f > 0) {
+          r.array[0][arrowsNum - 1] = (r.array[0][arrowsNum - 1] || 0) + f;
+        }
+      } else {
+        var count = f > 0 ? f : (i > 0 && initFloor > 0 ? initFloor - 1 : 0);
+        if (count > 0) {
+          r = addOrdinalRow(r, count, arrowsNum - 1);
+        }
+      }
+      r.normalize();
+      return r;
     };
-    //layer=2，限制crrcy及其子数组长度，按照crrcyCompare函数排序crrcy
-    if (x.layer===2){
-      //限制crrcy及其子数组长度
-      if(x.crrcy.length>MetaNum.maxOps) x.crrcy.splice(0,x.crrcy.length - MetaNum.maxOps);
-      x.crrcy.forEach(row => {
-        if (row.length > MetaNum.maxOps) row.splice(0, row.length - MetaNum.maxOps);
-      });
-      x.crrcy.sort(crrcyCompare);
+  };
+  P.chain = function (other, arrows) {
+    return this.arrow(arrows)(other);
+  };
+  Q.arrow = function (x, arrows, y) {
+    return new MetaNum(x).arrow(arrows)(y);
+  };
+  Q.chain = function (x, y, arrows) {
+    return new MetaNum(x).arrow(arrows)(y);
+  };
+  P.aperiote = P.aper = function (y) {
+    return this.arrow(y)(this);
+  };
+  Q.aperiote = Q.aper = function (x, y) {
+    return new MetaNum(x).arrow(y)(x);
+  };
+
+  P.inv_aperiote = P.i_aper = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 0 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length === 2 && row[1] > 0) {
+          return new MetaNum(row[1] + 1);
+        }
+      }
+      return result;
     }
-    //layer=3，限制drrdy及其子数组长度，按照drrdyCompare函数排序drrdy，再按照crrcyCompare函数排序crrcy
-    else if (x.layer===3){
-        //限制drrdy及其子数组长度
-      if(x.drrdy.length>MetaNum.maxOps) x.drrdy.splice(0,x.drrdy.length - MetaNum.maxOps);
-        x.drrdy.forEach(tier => {
-        if (tier.length > MetaNum.maxOps) tier.splice(0, tier.length - MetaNum.maxOps);
-          tier.forEach(row => {
-          if (row.length > MetaNum.maxOps) row.splice(0, row.length - MetaNum.maxOps);
+    if (z.layer === 0 && z.array.length === 1) {
+      var r0 = z.array[0];
+      if (r0.length > 1 && r0[1] > 0) {
+        return new MetaNum(r0[1] + 1);
+      }
+      return new MetaNum(1);
+    }
+    return z;
+  };
+  Q.inv_aperiote = Q.i_aper = function (x, z) {
+    return new MetaNum(x).inv_aperiote(z);
+  };
+
+  P.expande = P.expa = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.aperiote(x);  // expande(x, 2)
+    if (y.layer === 0) {
+      // finite y: r0 from base, Cantor expansion
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(0);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    // ordinal y: clone y, set r0, add [1, 1, 1]
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 1, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.expande = Q.expa = function (x, y) {
+    return new MetaNum(x).expande(y);
+  };
+
+  P.inv_expande = P.i_expa = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      // First: find ordinal marker [1, 1, 1]
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 1 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      // Second: find iteration count [count, 0, 1]
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 0 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      // Fallback: finite-level result
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row2 = result.array[i];
+        if (row2.length === 2 && row2[1] > 0) {
+          return new MetaNum(row2[1] + 1);
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_expande = Q.i_expa = function (x, z) {
+    return new MetaNum(x).inv_expande(z);
+  };
+
+  P.multiexpande = P.muea = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.expande(x);  // multiexpande(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(1);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 2, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.multiexpande = Q.muea = function (x, y) {
+    return new MetaNum(x).multiexpande(y);
+  };
+
+  P.inv_multiexpande = P.i_muea = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 2 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 1 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_multiexpande = Q.i_muea = function (x, z) {
+    return new MetaNum(x).inv_multiexpande(z);
+  };
+
+  P.powerexpande = P.poea = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.multiexpande(x);  // powerexpande(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(2);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 3, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.powerexpande = Q.poea = function (x, y) {
+    return new MetaNum(x).powerexpande(y);
+  };
+
+  P.inv_powerexpande = P.i_poea = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 3 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 2 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_powerexpande = Q.i_poea = function (x, z) {
+    return new MetaNum(x).inv_powerexpande(z);
+  };
+
+  P.aperioexpansion = P.apea = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.expande(x);
+    if (y.eq(2)) return x.multiexpande(x);
+    if (y.eq(3)) return x.powerexpande(x);
+    var base = x.powerexpande(x);  // aperioexpansion(x, 3)
+    if (y.layer === 0) {
+      var result = base.clone();
+      var count = y.toNumber() - 3;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(3);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 4, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.aperioexpansion = Q.apea = function (x, y) {
+    return new MetaNum(x).aperioexpansion(y);
+  };
+
+  P.inv_aperioexpansion = P.i_apea = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 4 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 3 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperioexpande = Q.i_apea = function (x, z) {
+    return new MetaNum(x).inv_aperioexpansion(z);
+  };
+
+  P.explode = P.expl = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.aperioexpansion(x);  // explode(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(3);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 4, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.explode = Q.expl = function (x, y) {
+    return new MetaNum(x).explode(y);
+  };
+
+  P.inv_explode = P.i_expl = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 4 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 3 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_explode = Q.i_expl = function (x, z) {
+    return new MetaNum(x).inv_explode(z);
+  };
+
+  P.multiexplode = P.muel = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.explode(x);  // multiexplode(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(4);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 5, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.multiexplode = Q.muel = function (x, y) {
+    return new MetaNum(x).multiexplode(y);
+  };
+
+  P.inv_multiexplode = P.i_muel = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 5 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 4 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_multiexplode = Q.i_muel = function (x, z) {
+    return new MetaNum(x).inv_multiexplode(z);
+  };
+
+  P.aperioexplode = P.apel = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.explode(x);
+    if (y.eq(2)) return x.multiexplode(x);
+    var base = x.multiexplode(x);  // aperioexplode(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(5);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 6, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.aperioexplode = Q.apel = function (x, y) {
+    return new MetaNum(x).aperioexplode(y);
+  };
+
+  P.inv_aperioexplode = P.i_apel = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 6 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 5 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperioexplode = Q.i_apel = function (x, z) {
+    return new MetaNum(x).inv_aperioexplode(z);
+  };
+
+  P.detonate = P.deto = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.aperioexplode(x);  // detonate(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(5);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 6, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.detonate = Q.deto = function (x, y) {
+    return new MetaNum(x).detonate(y);
+  };
+
+  P.inv_detonate = P.i_deto = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 6 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 5 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_detonate = Q.i_deto = function (x, z) {
+    return new MetaNum(x).inv_detonate(z);
+  };
+
+  P.aperionate = P.apeo = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.aperiote(x);
+    if (y.eq(2)) return x.aperioexpansion(x);
+    if (y.eq(3)) return x.aperioexplode(x);
+    var base = x.aperioexplode(x);  // aperionate(x, 3)
+    if (y.layer === 0) {
+      var result = base.clone();
+      var count = y.toNumber() - 3;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(6);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 7, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.aperionate = Q.apeo = function (x, y) {
+    return new MetaNum(x).aperionate(y);
+  };
+
+  P.inv_aperionate = P.i_apeo = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 7 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 6 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperionate = Q.i_apeo = function (x, z) {
+    return new MetaNum(x).inv_aperionate(z);
+  };
+
+  // megote (ω^2+1): iterates aperionate
+  P.megote = P.mego = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.aperionate(x);  // megote(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(7);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 8, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.megote = Q.mego = function (x, y) {
+    return new MetaNum(x).megote(y);
+  };
+
+  P.inv_megote = P.i_mego = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 8 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 7 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_megote = Q.i_mego = function (x, z) {
+    return new MetaNum(x).inv_megote(z);
+  };
+
+  // aperimegote (ω^2+ω): diagonalization at ω^2 level
+  P.aperimegote = P.apmg = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.megote(x);
+    var base = x.megote(x);  // aperimegote(x, 1)
+    if (y.layer === 0) {
+      var result = base.clone();
+      var count = y.toNumber() - 1;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(8);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 9, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.aperimegote = Q.apmg = function (x, y) {
+    return new MetaNum(x).aperimegote(y);
+  };
+
+  P.inv_aperimegote = P.i_apmg = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 8 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperimegote = Q.i_apmg = function (x, z) {
+    return new MetaNum(x).inv_aperimegote(z);
+  };
+
+  // megoexpande (ω^2+ω+1): iterates aperimegote
+  P.megoexpande = P.mgea = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.aperimegote(x);  // megoexpande(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(8);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 9, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.megoexpande = Q.mgea = function (x, y) {
+    return new MetaNum(x).megoexpande(y);
+  };
+
+  P.inv_megoexpande = P.i_mgea = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 8 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_megoexpande = Q.i_mgea = function (x, z) {
+    return new MetaNum(x).inv_megoexpande(z);
+  };
+
+  // megoaperionation (ω^2*2): diagonalization at ω^2+ω level
+  P.megoaperionation = P.mgao = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.megote(x);
+    if (y.eq(2)) return x.aperimegote(x);
+    if (y.eq(3)) return x.megoexpande(x);
+    var base = x.megoexpande(x);  // megoaperionation(x, 3)
+    if (y.layer === 0) {
+      var result = base.clone();
+      var count = y.toNumber() - 3;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(9);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 10, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.megoaperionation = Q.mgao = function (x, y) {
+    return new MetaNum(x).megoaperionation(y);
+  };
+
+  P.inv_megoaperionation = P.i_mgao = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_megoaperionation = Q.i_mgao = function (x, z) {
+    return new MetaNum(x).inv_megoaperionation(z);
+  };
+
+  // gigote (ω^2*2+1): iterates megoaperionation
+  P.gigote = P.gigo = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.megoaperionation(x);  // gigote(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(9);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 10, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.gigote = Q.gigo = function (x, y) {
+    return new MetaNum(x).gigote(y);
+  };
+
+  P.inv_gigote = P.i_gigo = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_gigote = Q.i_gigo = function (x, z) {
+    return new MetaNum(x).inv_gigote(z);
+  };
+
+  // aperiatotion (ω^3): diagonalization of ω^2*y
+  P.aperiatotion = P.apat = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.aperionate(x);
+    if (y.eq(2)) return x.megoaperionation(x);
+    var base = x.megoaperionation(x);  // aperiatotion(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(10);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 11, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.aperiatotion = Q.apat = function (x, y) {
+    return new MetaNum(x).aperiatotion(y);
+  };
+
+  P.inv_aperiatotion = P.i_apat = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 11 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperiatotion = Q.i_apat = function (x, z) {
+    return new MetaNum(x).inv_aperiatotion(z);
+  };
+
+  // powiainate (ω^3+1): iterates aperiatotion
+  P.powiainate = P.pwan = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.aperiatotion(x);  // powiainate(x, 2)
+    if (y.layer === 0) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(10);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 11, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.powiainate = Q.pwan = function (x, y) {
+    return new MetaNum(x).powiainate(y);
+  };
+
+  P.inv_powiainate = P.i_pwan = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 11 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_powiainate = Q.i_pwan = function (x, z) {
+    return new MetaNum(x).inv_powiainate(z);
+  };
+
+  // iter (ω^ω): diagonalizes ω^x operations
+  // k <= maxCols-2: layer 0, multi-index; k >= maxCols-1: layer 1
+  P.iter = P.ite = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yn = y.toNumber();
+      var maxLevel = MetaNum.maxCols - 1;
+      if (yn < maxLevel) {
+        // y fits within ordinal levels: create ω^y at layer 0
+        // Multi-index format: [1, 0, 0, ..., 0, 1] with yn zeros
+        var result = x.clone();
+        var row = [1];
+        for (var i = 0; i < yn; i++) row.push(0);
+        row.push(1);
+        result.layer = 0;
+        result.array.push(row);
+        result.normalize();
+        return result;
+      } else {
+        // y >= maxLevel: promote to layer 1, compact format
+        var result = x.clone();
+        result.layer = 1;
+        result.array.push([1, yn, 1]);
+        result.normalize();
+        return result;
+      }
+    }
+    
+    // y is ordinal: iter on ordinal
+    // Promote: absorb y's ordinal rows into r0, add iter marker
+    // Layer promotion consumes one level: skip the first value
+    var result = y.clone();
+    var newR0 = x.array[0].slice();
+    // Absorb y's ordinal rows into r0 (skip count and first value)
+    for (var ir = 1; ir < y.array.length; ir++) {
+      var yrow = y.array[ir];
+      // Start from index 2 to skip count and first ordinal value
+      for (var jc = 2; jc < yrow.length; jc++) {
+        newR0.push(yrow[jc]);
+      }
+    }
+    result.array[0] = newR0;
+    result.array = [newR0];
+    // Add iter's own ordinal marker
+    result.array.push([1, 0, 1]);
+    result.layer = y.layer + 1;
+    result.normalize();
+    return result;
+  };
+  Q.iter = Q.ite = function (x, y) {
+    return new MetaNum(x).iter(y);
+  };
+
+  P.inv_iter = P.i_ite = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      // Find the highest ordinal row and decrement/remove it
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_iter = Q.i_ite = function (x, z) {
+    return new MetaNum(x).inv_iter(z);
+  };
+  
+
+
+  P.choose = function (other) {
+    var x = this.clone();
+    other = new MetaNum(other);
+    if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
+    if (x.sign === -1 || other.sign === -1) return MetaNum.ZERO.clone();
+    if (other.eq(MetaNum.ZERO) || x.eq(other)) return MetaNum.ONE.clone();
+    if (x.lt(other)) return MetaNum.ZERO.clone();
+    if (isSimple(x) && isSimple(other) && Number.isInteger(x.array[0][0]) && Number.isInteger(other.array[0][0]) &&
+        x.array[0][0] >= 0 && other.array[0][0] >= 0 && x.array[0][0] <= 1000 && other.array[0][0] <= 1000) {
+      var n = x.array[0][0];
+      var k = other.array[0][0];
+      if (k > n - k) k = n - k;
+      var result = 1;
+      for (var i = 0; i < k; i++) result = result * (n - i) / (i + 1);
+      return new MetaNum(result);
+    }
+    return x.fact().div(other.fact().mul(x.sub(other).fact()));
+  };
+  Q.choose = function (x, y) {
+    return new MetaNum(x).choose(y);
+  };
+
+  P.toNumber = function () {
+    if (this.sign === -1) return -this.abs().toNumber();
+    if (this.isNaN()) return NaN;
+    if (this.isInfinite()) return Infinity;
+    if (this.layer > 0) return Infinity;
+    if (this.array.length > 1) return Infinity;
+    var r0 = this.array[0];
+    if (r0.length === 1) return r0[0];
+    return Infinity;
+  };
+  Q.toNumber = function (x) {
+    return new MetaNum(x).toNumber();
+  };
+
+  P.valueOf = function () {
+    return this.toString();
+  };
+
+  P.toString = function () {
+    function formatCount(pattern, count) {
+      return count >= 4 ? pattern + "^" + count : pattern.repeat(count);
+    }
+    function formatFiniteOps(r0) {
+      var parts = [];
+      for (var i = r0.length - 1; i >= 1; i--) {
+        if (r0[i] > 0) {
+          var letter = String.fromCharCode(68 + i);
+          var token = formatCount(letter, r0[i]);
+          parts.push(token);
+        }
+      }
+      if (parts.length === 0) return "";
+      var hasPower = false;
+      for (var j = 0; j < parts.length; j++) {
+        if (parts[j].indexOf("^") !== -1) { hasPower = true; break; }
+      }
+      var sep = hasPower ? " " : "";
+      return parts.join(sep) + (hasPower ? " " : "");
+    }
+    if (this.isNaN()) return "NaN";
+    if (this.isInfinite()) return this.sign === -1 ? "-Infinity" : "Infinity";
+
+    if (this.eq(MetaNum.ZERO)) return "0";
+
+    if (this.sign === -1) return "-" + this.abs().toString();
+
+    if (this.layer > 0) {
+      var LAYER_SYMBOLS = {1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '&', 7: '~', 8: '<', 9: '>', 10: '?'};
+      var sym = this.layer <= 10 ? LAYER_SYMBOLS[this.layer] : null;
+      
+      // Layer >= 11: use {m}ε{n} format
+      if (this.layer >= 11) {
+        var s2 = "";
+        if (this.array.length >= 2) {
+          var lastRow = this.array[this.array.length - 1];
+          var lastCount = lastRow[0];
+          s2 = "{" + lastCount + "}\u03B5{" + this.layer + "}";
+        } else {
+          s2 = "\u03B5{" + this.layer + "}";
+        }
+        s2 += " [" + this.array[0].join(",") + "]";
+        for (var i = 1; i < this.array.length - 1; i++) {
+          s2 += " [" + this.array[i].join(",") + "]";
+        }
+        return s2;
+      }
+      
+      // Layers 1-10: try letter notation
+      if (sym && this.array.length >= 2) {
+        var ordTokens = [];
+        var validLetter = true;
+        
+        for (var i = this.array.length - 1; i >= 1; i--) {
+          var row = this.array[i];
+          if (row.length < 3) { validLetter = false; break; }
+          var diag = row[row.length - 1];
+          var countVals = row[0];
+          var vals = row.slice(1, row.length - 1);
+          var n = vals.length;
+          
+          if (diag < 1 || diag > 26) { validLetter = false; break; }
+          
+          var U = String.fromCharCode(64 + diag);
+          var allZero = true;
+          var anyLarge = false;
+          var largeVal = -1;
+          for (var j = 0; j < n; j++) {
+            if (vals[j] > 25) { anyLarge = true; largeVal = vals[j]; }
+            if (vals[j] !== 0) allZero = false;
+          }
+          
+          var token;
+          if (allZero) {
+            token = n > 26 ? U + "a" + n : U + "a".repeat(n);
+          } else if (anyLarge && n === 1) {
+            // Compact format: single large value
+            token = U + "a" + largeVal;
+          } else {
+            var lower = "";
+            var ok = true;
+            for (var j = n - 1; j >= 0; j--) {
+              if (vals[j] > 25) { ok = false; break; }
+              lower += String.fromCharCode(97 + vals[j]);
+            }
+            if (!ok) { validLetter = false; break; }
+            token = U + lower;
+          }
+          if (countVals > 1) {
+            token = countVals >= 4 ? token + "^" + countVals : token.repeat(countVals);
+          }
+          ordTokens.push(token);
+        }
+        
+        if (validLetter && ordTokens.length > 0) {
+          var finOps = formatFiniteOps(this.array[0]);
+          return sym + ordTokens.join("") + (finOps ? finOps : "");
+        }
+      }
+      
+      // Ultimate fallback: array notation with layer symbol
+      var s = (this.layer <= 10 ? LAYER_SYMBOLS[this.layer] || ("!".repeat(this.layer)) : "e" + this.layer) + " ";
+      for (var i = 0; i < this.array.length; i++) {
+        if (i > 0) s += " ";
+        s += "[" + this.array[i].join(",") + "]";
+      }
+      return s;
+    }
+
+    if (this.array.length <= 1) {
+      var r0 = this.array[0];
+
+      if (r0.length === 1) return String(r0[0]);
+
+      if (r0.length >= 24) {
+        var highestIdx = -1;
+        for (var j = r0.length - 1; j >= 1; j--) {
+          if (r0[j] && r0[j] !== 0) {
+            highestIdx = j;
+            break;
+          }
+        }
+        if (highestIdx !== -1) {
+          return r0[highestIdx] + "Aa" + highestIdx;
+        }
+      }
+
+      var result = "";
+      for (var j = r0.length - 1; j >= 1; j--) {
+        if (!r0[j] || r0[j] === 0) continue;
+        var letter = String.fromCharCode(68 + j);
+        if (r0[j] > 3) {
+          result += letter + "^" + r0[j] + " ";
+        } else {
+          result += letter.repeat(r0[j]);
+        }
+      }
+      result += decimalPlaces(r0[0], 6);
+      return result;
+    }
+
+    // Layer 0 with ordinal rows: try letter notation
+    if (this.array.length > 1) {
+      var ordTokens = [];
+      var validLetter = true;
+      var useExclaim = false;
+      
+      for (var i = this.array.length - 1; i >= 1; i--) {
+        var row = this.array[i];
+        if (row.length < 3) { validLetter = false; break; }
+        var diag = row[row.length - 1];
+        var countVals = row[0];
+        var vals = row.slice(1, row.length - 1);
+        var n = vals.length;
+        
+        if (diag < 1 || diag > 26) { validLetter = false; break; }
+        
+        var U = String.fromCharCode(64 + diag);
+        var allZero = true;
+        var anyLarge = false;
+        for (var j = 0; j < n; j++) {
+          if (vals[j] > 25) { anyLarge = true; }
+          if (vals[j] !== 0) allZero = false;
+        }
+        if (anyLarge) { validLetter = false; break; }
+        if (!validLetter) break;
+        
+        var token;
+        if (allZero) {
+          if (n > 26) {
+            useExclaim = true;
+            token = U + "a" + n;
+          } else {
+            token = U + "a".repeat(n);
+          }
+        } else {
+          var lower = "";
+          for (var j = n - 1; j >= 0; j--) {
+            lower += String.fromCharCode(97 + vals[j]);
+          }
+          token = U + lower;
+        }
+        if (countVals > 1) {
+          token = countVals >= 4 ? token + "^" + countVals : token.repeat(countVals);
+        }
+        ordTokens.push(token);
+      }
+      
+      if (validLetter) {
+        var finOps = formatFiniteOps(this.array[0]);
+        var prefix = useExclaim ? "!" : "";
+        var baseNum = useExclaim ? "" : decimalPlaces(this.array[0][0], 6);
+        return prefix + ordTokens.join("") + (finOps ? finOps : "") + baseNum;
+      }
+    }
+
+    if (this.array.length === 2 &&
+        this.array[0].length === 1 && this.array[0][0] === 10 &&
+        this.array[1].length === 2) {
+      return this.array[1][0] + "Aa" + this.array[1][1];
+    }
+
+    var multiResult = "";
+    for (var i = 0; i < this.array.length; i++) {
+      if (i > 0) multiResult += " ";
+      multiResult += "[" + this.array[i].join(",") + "]";
+    }
+    return multiResult;
+  };
+
+  P.toJSON = function () {
+    if (MetaNum.serializeMode === 0) {
+      return {
+        sign: this.sign,
+        array: deepCloneArray(this.array),
+        layer: this.layer
+      };
+    } else {
+      return this.toString();
+    }
+  };
+
+  P.toStringWithDecimalPlaces = function (places) {
+    if (this.sign === -1) return "-" + this.abs().toStringWithDecimalPlaces(places);
+    if (this.isNaN()) return "NaN";
+    if (this.isInfinite()) return "Infinity";
+    if (isSimple(this)) {
+      var v = decimalPlaces(this.array[0][0], places);
+      if (Number.isFinite(v)) return v.toString();
+    }
+    return this.toString();
+  };
+
+  P.toExponential = function (places) {
+    if (this.sign === -1) return "-" + this.abs().toExponential(places);
+    if (this.isNaN()) return "NaN";
+    if (this.isInfinite()) return "Infinity";
+    if (isSimple(this)) return this.toNumber().toExponential(places);
+    return this.toString();
+  };
+
+  P.toFixed = function (places) {
+    if (this.sign === -1) return "-" + this.abs().toFixed(places);
+    if (this.isNaN()) return "NaN";
+    if (this.isInfinite()) return "Infinity";
+    if (isSimple(this)) return this.toNumber().toFixed(places);
+    return this.toString();
+  };
+
+  P.toPrecision = function (places) {
+    if (this.sign === -1) return "-" + this.abs().toPrecision(places);
+    if (this.isNaN()) return "NaN";
+    if (this.isInfinite()) return "Infinity";
+    if (isSimple(this)) return this.toNumber().toPrecision(places);
+    return this.toString();
+  };
+
+  P.toHyperE = function () {
+    if (this.sign === -1) return "-" + this.abs().toHyperE();
+    if (this.isNaN()) return "NaN";
+    if (this.isInfinite()) return "Infinity";
+    if (isSimple(this)) {
+      var v = this.array[0][0];
+      if (v < 10) return String(v);
+      return "E" + Math.log10(v).toFixed(6);
+    }
+    if (this.layer > 0) return "E" + this.layer + "#" + this.toString();
+    if (this.array.length === 1 && this.array[0].length >= 2) {
+      var s = "E";
+      for (var i = 1; i < this.array[0].length; i++) s += "#";
+      s += String(this.array[0][0]);
+      return s;
+    }
+    return this.toString();
+  };
+
+  Q.fromNumber = function (input) {
+    if (typeof input !== "number") throw Error(invalidArgument + "Expected Number");
+    var x = new MetaNum();
+    x.array = [[Math.abs(input)]];
+    x.sign = input < 0 ? -1 : 1;
+    x.layer = 0;
+    return x.normalize();
+  };
+
+  Q.fromArray = function (array, sign, layer) {
+    if (!Array.isArray(array)) throw Error(invalidArgument + "Expected Array");
+    var x = new MetaNum();
+    if (array.length > 0 && !Array.isArray(array[0])) {
+      x.array = [array.slice(0)];
+    } else {
+      x.array = deepCloneArray(array);
+    }
+    if (typeof sign === "number") x.sign = sign < 0 ? -1 : 1;
+    else x.sign = 1;
+    if (typeof layer === "number" && isFinite(layer) && layer >= 0) x.layer = Math.floor(layer);
+    else if (x.array.length > 1) x.layer = 1;
+    else x.layer = 0;
+    return x.normalize();
+  };
+
+  Q.fromObject = function (input) {
+    if (typeof input !== "object") throw Error(invalidArgument + "Expected Object");
+    if (input === null) return MetaNum.ZERO.clone();
+    if (Array.isArray(input)) return MetaNum.fromArray(input);
+    if (input instanceof MetaNum) return new MetaNum(input);
+    if (!(input.array instanceof Array)) throw Error(invalidArgument + "Expected that property 'array' exists");
+    var x = new MetaNum();
+    x.array = deepCloneArray(input.array);
+    x.sign = typeof input.sign === "number" ? (input.sign < 0 ? -1 : 1) : 1;
+    x.layer = typeof input.layer === "number" && isFinite(input.layer) && input.layer >= 0 ? Math.floor(input.layer) : 0;
+    return x.normalize();
+  };
+
+  Q.fromJSON = function (input) {
+    if (typeof input === "object") return MetaNum.fromObject(input);
+    if (typeof input !== "string") throw Error(invalidArgument + "Expected String");
+    var parsedObject;
+    try {
+      parsedObject = JSON.parse(input);
+    } catch (e) {
+      throw Error(invalidArgument + "Invalid JSON string");
+    }
+    return MetaNum.fromObject(parsedObject);
+  };
+
+  Q.hyper = function (n, a, b) {
+    if (n === undefined) n = 2;
+    n = new MetaNum(n);
+    a = new MetaNum(a);
+    b = new MetaNum(b);
+    if (n.isNaN() || a.isNaN() || b.isNaN()) return MetaNum.NaN.clone();
+    if (n.eq(MetaNum.ZERO)) return b.add(MetaNum.ONE);
+    if (n.eq(MetaNum.ONE)) return a.add(b);
+    if (n.eq(2)) return a.mul(b);
+    if (n.eq(3)) return a.pow(b);
+    if (n.eq(4)) return a.tetr(b);
+    if (n.eq(5)) return a.pent(b);
+    return a.arrow(b, n.sub(1));
+  };
+
+  Q.affordGeometricSeries = function (resourcesAvailable, priceStart, priceRatio, currentOwned) {
+    resourcesAvailable = new MetaNum(resourcesAvailable);
+    priceStart = new MetaNum(priceStart);
+    priceRatio = new MetaNum(priceRatio);
+    currentOwned = new MetaNum(currentOwned);
+    return priceStart.eq(new MetaNum(1))
+      ? resourcesAvailable.add(new MetaNum(1)).floor()
+      : MetaNum.ONE;
+  };
+
+  Q.affordArithmeticSeries = function (resourcesAvailable, priceStart, priceAdd, currentOwned) {
+    resourcesAvailable = new MetaNum(resourcesAvailable);
+    priceStart = new MetaNum(priceStart);
+    priceAdd = new MetaNum(priceAdd);
+    currentOwned = new MetaNum(currentOwned);
+    if (priceAdd.eq(MetaNum.ZERO)) return resourcesAvailable.div(priceStart).floor();
+    var a = priceAdd;
+    var b = priceStart.mul(2).sub(priceAdd);
+    var c = priceStart.sub(priceAdd).sub(resourcesAvailable.mul(2)).add(a);
+    return b.neg().add(b.pow(2).sub(a.mul(c).mul(4)).sqrt()).div(a.mul(2)).floor();
+  };
+
+  Q.sumGeometricSeries = function (numItems, start, ratio, numItemsStart) {
+    if (numItemsStart === undefined) numItemsStart = 0;
+    numItems = new MetaNum(numItems);
+    start = new MetaNum(start);
+    ratio = new MetaNum(ratio);
+    numItemsStart = new MetaNum(numItemsStart);
+    if (numItems.lt(numItemsStart)) return MetaNum.ZERO.clone();
+    return start.mul(MetaNum.ONE.sub(ratio.pow(numItems.sub(numItemsStart).add(MetaNum.ONE))))
+      .div(MetaNum.ONE.sub(ratio));
+  };
+
+  Q.sumArithmeticSeries = function (numItems, start, add, numItemsStart) {
+    if (numItemsStart === undefined) numItemsStart = 0;
+    numItems = new MetaNum(numItems);
+    start = new MetaNum(start);
+    add = new MetaNum(add);
+    numItemsStart = new MetaNum(numItemsStart);
+    if (numItems.lt(numItemsStart)) return MetaNum.ZERO.clone();
+    var n = numItems.sub(numItemsStart).add(MetaNum.ONE);
+    var last = start.add(add.mul(n.sub(MetaNum.ONE)));
+    return n.mul(start.add(last)).div(new MetaNum(2));
+  };
+
+  Q.choose = function (x, y) {
+    return new MetaNum(x).choose(y);
+  };
+
+  Q.fromBigInt = function (input) {
+    if (typeof BigInt === "undefined") throw Error(metaNumError + "BigInt is not supported in current environment");
+    if (typeof input === "bigint") {
+      if (input >= BigInt(0) && input <= BigInt(MAX_SAFE_INTEGER)) {
+        return new MetaNum(Number(input));
+      }
+      var inputStr = input.toString();
+      var inputLen = inputStr.length;
+      if (inputLen <= LONG_STRING_MIN_LENGTH) {
+        return new MetaNum(Number(inputStr));
+      }
+      var x = new MetaNum();
+      x.array = [[inputLen - 1 + log10LongString(inputStr)]];
+      x.sign = 1;
+      x.layer = 0;
+      return x.normalize();
+    } else {
+      throw Error(invalidArgument + "Expected BigInt");
+    }
+  };
+
+  Q.fromHyperE = function (input) {
+    if (typeof input !== "string") throw Error(invalidArgument + "Expected String");
+    var s = input.trim();
+    var negateIt = false;
+    if (s[0] === "-") {
+      negateIt = true;
+      s = s.substring(1).trim();
+    }
+    if (s === "NaN" || s === "Infinity") {
+      var x = new MetaNum();
+      x.array = [[s === "NaN" ? NaN : Infinity]];
+      x.sign = negateIt ? -1 : 1;
+      return x;
+    }
+    var count = 0;
+    while (s[0] === "E") {
+      count++;
+      s = s.substring(1).trim();
+      if (s[0] === "#") {
+        s = s.substring(1);
+      }
+    }
+    if (count === 0) {
+      return MetaNum.fromString((negateIt ? "-" : "") + s);
+    }
+    var x = new MetaNum();
+    if (count === 1) {
+      x.array = [[Math.pow(10, Number(s))]];
+    } else {
+      x.array = [[Number(s)]];
+      for (var i = 1; i < count; i++) x.array[0].push(i === count - 1 ? 1 : 0);
+    }
+    x.sign = negateIt ? -1 : 1;
+    x.layer = 0;
+    return x.normalize();
+  };
+
+  Q.fromString = function (input) {
+    if (typeof input !== "string") throw Error(invalidArgument + "Expected String");
+
+    try {
+      var parsed = JSON.parse(input);
+      if (parsed && typeof parsed === "object" && parsed.array) {
+        return MetaNum.fromJSON(parsed);
+      }
+    } catch (e) {}
+
+    var x = new MetaNum();
+    x.array = [[0]];
+    x.sign = 1;
+    x.layer = 0;
+
+    var s = input.trim();
+    if (s === "" || s === "0") {
+      return x;
+    }
+
+    var negateIt = false;
+    if (s[0] === "-" || s[0] === "+") {
+      var signMatch = s.match(/^[-\+]+/);
+      var signs = signMatch[0];
+      negateIt = (signs.match(/-/g) || []).length % 2 === 1;
+      s = s.substring(signMatch[0].length).trim();
+    }
+
+    if (s === "NaN") {
+      x.array = [[NaN]];
+      return x;
+    }
+    if (s === "Infinity") {
+      x.array = [[Infinity]];
+      x.sign = negateIt ? -1 : 1;
+      return x;
+    }
+
+    var layerMatch = s.match(/^\u03C9\^(\d+)\s*/);
+    if (layerMatch) {
+      x.layer = parseInt(layerMatch[1], 10);
+      s = s.substring(layerMatch[0].length).trim();
+    }
+
+    // Parse {m}ε{n} format (layer >= 11)
+    var epsMatch = s.match(/^\{(\d+(?:\.\d+)?)\}\u03B5\{(\d+)\}\s*/);
+    if (epsMatch) {
+      x.layer = parseInt(epsMatch[2], 10);
+      var epsCount = Number(epsMatch[1]);
+      s = s.substring(epsMatch[0].length).trim();
+      if (x.layer >= 11) {
+        x.array[0] = [epsCount];
+        if (epsCount >= 1 && isFinite(epsCount)) {
+          x.array.push([epsCount, 0, 1]);
+        }
+      }
+      if (negateIt) x.sign = -1;
+      return x.normalize();
+    }
+
+    // Parse ε{n} format (layer with no count)
+    var epsSimpleMatch = s.match(/^\u03B5\{(\d+)\}\s*/);
+    if (epsSimpleMatch) {
+      x.layer = parseInt(epsSimpleMatch[1], 10);
+      s = s.substring(epsSimpleMatch[0].length).trim();
+      if (negateIt) x.sign = -1;
+      return x.normalize();
+    }
+
+    // Parse layer symbol + letter pattern + {n} format
+    // (simple case: just {n} after symbol, no letters)
+    var symSimpleMatch = s.match(/^([!@#\$%&~<>?])\{(\d+(?:\.\d+)?)\}\s*$/);
+    if (symSimpleMatch) {
+      var SYMBOL_LAYERS = {'!': 1, '@': 2, '#': 3, '$': 4, '%': 5, '&': 6, '~': 7, '<': 8, '>': 9, '?': 10};
+      x.layer = SYMBOL_LAYERS[symSimpleMatch[1]] || 1;
+      var symSimpleVal = Number(symSimpleMatch[2]);
+      if (!isNaN(symSimpleVal) && isFinite(symSimpleVal)) {
+        x.array[0] = [symSimpleVal];
+      }
+      if (negateIt) x.sign = -1;
+      return x.normalize();
+    }
+
+    // Parse symbol + full letter pattern {n} (multi-letter like !AaBa{n}, handles ^N notation)
+    var symParseMatch = s.match(/^([!@#\$%&~<>?])(.*?)\{(\d+(?:\.\d+)?)\}\s*$/);
+    if (symParseMatch) {
+      var SYMBOL_LAYERS3 = {'!': 1, '@': 2, '#': 3, '$': 4, '%': 5, '&': 6, '~': 7, '<': 8, '>': 9, '?': 10};
+      x.layer = SYMBOL_LAYERS3[symParseMatch[1]] || 1;
+      var symLetters2 = symParseMatch[2].trim();
+      var symBase2 = Number(symParseMatch[3]);
+      
+      // Parse tokens: ordinal tokens have lowercase (Aa, Abc), finite ops are single uppercase
+      var symTokens2 = [];
+      var symFinOps = [];  // finite ops for r0
+      var symTokRegex = /([A-Z][a-z]*)(?:\^(\d+))?/g;
+      var symTokM;
+      while ((symTokM = symTokRegex.exec(symLetters2)) !== null) {
+        var tokName = symTokM[1];
+        var tokCount = symTokM[2] ? parseInt(symTokM[2], 10) : 1;
+        // Single uppercase letter (no lowercase) = finite op
+        if (tokName.length === 1 && tokName[0] >= 'D') {
+          // Finite operations start from E (level 1 = E, level 2 = F, ...)
+          var finLevel = tokName.charCodeAt(0) - 68; // 68 = 'D', E->1, F->2, ...
+          if (finLevel > 0) {
+            symFinOps.push({level: finLevel, count: tokCount});
+          }
+        } else {
+          symTokens2.push({name: tokName, count: tokCount});
+        }
+      }
+      
+      if (symTokens2.length === 0) {
+        x.array[0] = [symBase2];
+        if (negateIt) x.sign = -1;
+        return x;
+      }
+      
+      // Group consecutive identical tokens
+      var symGroups2 = [];
+      for (var ti = 0; ti < symTokens2.length; ti++) {
+        if (symGroups2.length > 0 && symGroups2[symGroups2.length - 1].name === symTokens2[ti].name) {
+          symGroups2[symGroups2.length - 1].count += symTokens2[ti].count;
+        } else {
+          symGroups2.push({name: symTokens2[ti].name, count: symTokens2[ti].count});
+        }
+      }
+      
+      var symRows2 = [];
+      for (var gi3 = 0; gi3 < symGroups2.length; gi3++) {
+        var g3 = symGroups2[gi3];
+        var gName3 = g3.name;
+        var gU3 = gName3[0];
+        var gUIdx3 = gU3.charCodeAt(0) - 64;
+        var gLower3 = gName3.slice(1);
+        var gIndices3 = [];
+        for (var li3 = 0; li3 < gLower3.length; li3++) {
+          gIndices3.push(gLower3.charCodeAt(li3) - 97);
+        }
+        var gK3 = gIndices3.length;
+        var gAllZero3 = true;
+        var gFirstNonZero3 = -1;
+        for (var li3 = 0; li3 < gK3; li3++) {
+          if (gIndices3[li3] !== 0) {
+            gAllZero3 = false;
+            if (gFirstNonZero3 === -1) gFirstNonZero3 = li3;
+          }
+        }
+        var gLastIsA3 = gIndices3[gK3 - 1] === 0;
+        var gRow3 = [g3.count];
+        var gIsDiag3 = false;
+        
+        if (gAllZero3) {
+          for (var li3 = 0; li3 < gK3; li3++) gRow3.push(0);
+          gRow3.push(gUIdx3);
+        } else if (gLastIsA3 && gFirstNonZero3 >= 0) {
+          gIsDiag3 = true;
+          for (var li3 = gK3 - 1; li3 >= 0; li3--) {
+            if (li3 === gK3 - 1) {
+              gRow3.push(symBase2);
+            } else if (li3 === gFirstNonZero3) {
+              gRow3.push(gIndices3[li3] + 1);
+            } else if (li3 < gFirstNonZero3) {
+              gRow3.push(gIndices3[li3]);
+            } else {
+              gRow3.push(0);
+            }
+          }
+          gRow3.push(gUIdx3);
+        } else {
+          for (var li3 = gK3 - 1; li3 >= 0; li3--) {
+            gRow3.push(gIndices3[li3]);
+          }
+          gRow3.push(gUIdx3);
+        }
+        symRows2.push({
+          row: gRow3,
+          isDiag: gIsDiag3,
+          lowerIndices: gIndices3,
+          level: gUIdx3
         });
+      }
+      
+      symRows2.sort(function(a, b) {
+        if (a.level !== b.level) return a.level - b.level;
+        var maxLen = Math.max(a.lowerIndices.length, b.lowerIndices.length);
+        for (var ii = 0; ii < maxLen; ii++) {
+          var va = ii < a.lowerIndices.length ? a.lowerIndices[ii] : 0;
+          var vb = ii < b.lowerIndices.length ? b.lowerIndices[ii] : 0;
+          if (va !== vb) return va - vb;
+        }
+        return 0;
       });
-      x.drrdy.sort(drrdyCompare);
-      x.drrdy.forEach(tier => tier.sort(crrcyCompare));
+      
+      x.array = [[symBase2]];
+      // Apply finite ops to r0
+      for (var fi = 0; fi < symFinOps.length; fi++) {
+        var fo = symFinOps[fi];
+        x.array[0][fo.level] = (x.array[0][fo.level] || 0) + fo.count;
+      }
+      // Handle special finite ops: F and E
+      // F (level 2): F^count means tetration exponent count-2
+      // E (level 1): E^count means exponent count
+      // Higher levels (G, H, ...) are higher hyperoperation levels
+      x._oaRowData = [];
+      for (var gi3 = 0; gi3 < symRows2.length; gi3++) {
+        x.array.push(symRows2[gi3].row);
+        x._oaRowData.push({isDiag: symRows2[gi3].isDiag});
+      }
+      if (negateIt) x.sign = -1;
+      return x.normalize();
     }
-    if (MetaNum.debug >= MetaNum.ALL) console.log("cut and sorted: " + this);
-    //layer升降级
-    //layer=0，当array大于MAX_SAFE_INTEGER时，升级为layer=1
-    if(x.layer==0 && x.array>MAX_SAFE_INTEGER){
+
+    var bracketPattern = /\[([^\]]*)\]/g;
+    var match;
+    var rowIndex = 0;
+
+    while ((match = bracketPattern.exec(s)) !== null) {
+      var nums = match[1].split(",");
+      var row = [];
+      for (var i = 0; i < nums.length; i++) {
+        var raw = nums[i].trim();
+        if (raw[0] === '[') raw = raw.substring(1);
+        if (raw[raw.length - 1] === ']') raw = raw.substring(0, raw.length - 1);
+        var n = Number(raw);
+        if (!isNaN(n) && isFinite(n)) {
+          row.push(n);
+        } else {
+          row.push(0);
+        }
+      }
+      if (rowIndex === 0) {
+        x.array[0] = row;
+      } else {
+        x.array.push(row);
+      }
+      rowIndex++;
+      if (rowIndex >= MetaNum.maxRows) break;
+    }
+
+    if (rowIndex > 1) {
       x.layer = 1;
-      x.array = Math.log10(x.array);
-      x.brrby = [1];
-      b=true;
     }
-    //layer=1，当brrby为[0]时，降级为layer=0
-    else if(x.layer==1){
-      var i=0;
-      if(x.brrby==[0] || !x.brrby.length || !x.brrby){
-        x.layer=0;
-        b=true;
+
+    if (rowIndex === 0) {
+      var rem = s;
+
+      var tetrMatch = rem.match(/^(\d+(?:\.\d+)?)\s*\^\^\s*(\d+(?:\.\d+)?)\s*$/);
+      if (tetrMatch) {
+        var tetrBase = Number(tetrMatch[1]);
+        var tetrHeight = Number(tetrMatch[2]);
+        if (!isNaN(tetrBase) && !isNaN(tetrHeight) && isFinite(tetrHeight) && tetrHeight >= 0 && tetrHeight === Math.floor(tetrHeight)) {
+          if (tetrHeight === 0) {
+            x.array = [[1]];
+          } else if (tetrHeight === 1) {
+            x.array = [[tetrBase]];
+          } else {
+            var tetrResult = MetaNum.pow(tetrBase, new MetaNum(tetrBase));
+            for (var ti = 3; ti <= tetrHeight; ti++) {
+              tetrResult = MetaNum.pow(tetrBase, tetrResult);
+            }
+            x.array = deepCloneArray(tetrResult.array);
+            x.sign = tetrResult.sign;
+            x.layer = tetrResult.layer;
+          }
+          if (negateIt) x.sign = -1;
+          return x.normalize();
+        }
       }
-      //当array小于MAX_E=log10MSI时，降级为layer=0
-      while (x.array<MAX_E && x.brrby[0]){
-        x.array=Math.pow(10,x.array);
-        x.brrby[0]--;
-        if(x.brrby==[0]) x.layer=0;
-        b=true;
+
+      var coeffEMatch = rem.match(/^(\d+(?:\.\d+)?)\s*[Ee]\s*(\d+(?:\.\d+)?)\s*$/);
+      if (coeffEMatch) {
+        var coeff = Number(coeffEMatch[1]);
+        var exp = Number(coeffEMatch[2]);
+        if (!isNaN(coeff) && !isNaN(exp) && isFinite(exp) && coeff > 0) {
+          x.array[0] = [exp + Math.log10(coeff), 1];
+          x.sign = negateIt ? -1 : 1;
+          x.layer = 0;
+          return x.normalize();
+        }
       }
-      //当brrby长度大于2且brrby[i-1]为0时，为brrby[i-2]赋值array，array重置为1，brrby[i-1]--
-      if (x.brrby.length>2 && !x.brrby[0]){
-        for (i=2;!x.brrby[i-1];++i) continue;
-        x.brrby[i-2]=x.array;
-        x.array=1;
-        x.brrby[i-1]--;
-        b=true;
+
+      var aaMatch = rem.match(/^(\d+)Aa(\d+)/i);
+      if (aaMatch) {
+        var aaCount = aaMatch[1] ? Number(aaMatch[1]) : 1;
+        var aaN = Number(aaMatch[2]);
+        if (!isNaN(aaN) && isFinite(aaN) && aaN >= 1 && aaN === Math.floor(aaN)) {
+          if (aaN < MetaNum.maxCols) {
+            x.array[0] = [10];
+            x.array[0][aaN] = aaCount;
+          } else {
+            x.array = [[10], [aaCount, aaN]];
+          }
+          if (negateIt) x.sign = -1;
+          return x.normalize();
+        }
       }
-      //当brrby[i-1]大于MAX_SAFE_INTEGER时，为brrby[i]赋值1，array赋值brrby[i-1]+1，brrby[0...i-1]重置为0
-      for (let l=x.array.length,i=1;i<l;++i){
-        if (x.brrby[i-1]>MAX_SAFE_INTEGER){
-          x.brrby[i]=(x.brrby[i]||0)+1;
-          x.array=x.brrby[i-1]+1;
-          for (var j=1;j<=i;++j) x.array[j-1]=0;
-          b=true;
+
+      var oaMatch = rem.match(/^((?:[A-Z][a-z]+)+)(\d+)/);
+      if (oaMatch) {
+        var oaFullPrefix = oaMatch[1];
+        var oaN = Number(oaMatch[2]);
+        if (!isNaN(oaN) && isFinite(oaN) && oaN >= 1 && oaN === Math.floor(oaN)) {
+          var oaTokens = [];
+          var oaTokenRegex = /[A-Z][a-z]+/g;
+          var oaTm;
+          while ((oaTm = oaTokenRegex.exec(oaFullPrefix)) !== null) {
+            oaTokens.push(oaTm[0]);
+          }
+
+          var oaGroups = [];
+          for (var ti = 0; ti < oaTokens.length; ti++) {
+            if (oaGroups.length > 0 && oaGroups[oaGroups.length - 1].token === oaTokens[ti]) {
+              oaGroups[oaGroups.length - 1].count++;
+            } else {
+              oaGroups.push({token: oaTokens[ti], count: 1});
+            }
+          }
+
+          var oaRows = [];
+          for (var gi = 0; gi < oaGroups.length; gi++) {
+            var g = oaGroups[gi];
+            var gU = g.token[0];
+            var gUIdx = gU.charCodeAt(0) - 64;
+            var gLower = g.token.slice(1);
+            var gIndices = [];
+            for (var li = 0; li < gLower.length; li++) {
+              gIndices.push(gLower.charCodeAt(li) - 97);
+            }
+            var gK = gIndices.length;
+            var gAllZero = true;
+            var gFirstNonZero = -1;
+            for (var li = 0; li < gK; li++) {
+              if (gIndices[li] !== 0) {
+                gAllZero = false;
+                if (gFirstNonZero === -1) gFirstNonZero = li;
+              }
+            }
+            var gLastIsA = gIndices[gK - 1] === 0;
+            var gRow = [g.count];
+            var gIsDiag = false;
+
+            if (gAllZero) {
+              for (var li = 0; li < gK; li++) gRow.push(0);
+              gRow.push(gUIdx);
+            } else if (gLastIsA && gFirstNonZero >= 0) {
+              gIsDiag = true;
+              for (var li = gK - 1; li >= 0; li--) {
+                if (li === gK - 1) {
+                  gRow.push(oaN);
+                } else if (li === gFirstNonZero) {
+                  gRow.push(gIndices[li] + 1);
+                } else if (li < gFirstNonZero) {
+                  gRow.push(gIndices[li]);
+                } else {
+                  gRow.push(0);
+                }
+              }
+              gRow.push(gUIdx);
+            } else {
+              for (var li = gK - 1; li >= 0; li--) {
+                gRow.push(gIndices[li]);
+              }
+              gRow.push(gUIdx);
+            }
+            oaRows.push({
+              row: gRow,
+              isDiag: gIsDiag,
+              lowerIndices: gIndices,
+              level: gUIdx
+            });
+          }
+
+          oaRows.sort(function(a, b) {
+            if (a.level !== b.level) return a.level - b.level;
+            var maxLen = Math.max(a.lowerIndices.length, b.lowerIndices.length);
+            for (var i = 0; i < maxLen; i++) {
+              var va = i < a.lowerIndices.length ? a.lowerIndices[i] : 0;
+              var vb = i < b.lowerIndices.length ? b.lowerIndices[i] : 0;
+              if (va !== vb) return va - vb;
+            }
+            return 0;
+          });
+
+          x.array = [[oaN]];
+          x._oaRowData = [];
+          for (var gi = 0; gi < oaRows.length; gi++) {
+            x.array.push(oaRows[gi].row);
+            x._oaRowData.push({isDiag: oaRows[gi].isDiag});
+          }
+          x.layer = 1;
+          if (negateIt) x.sign = -1;
+          return x.normalize();
+        }
+      }
+
+      if (/^[A-Z]+/i.test(rem)) {
+        var prefixMatch = rem.match(/^([A-Z]+)/i);
+        var prefix = prefixMatch[0].toUpperCase();
+        rem = rem.substring(prefixMatch[0].length).trim();
+        var val = Number(rem);
+        if (!isNaN(val) && isFinite(val)) {
+          var counts = {};
+          var maxIdx = 0;
+          for (var i = 0; i < prefix.length; i++) {
+            var letterPos = prefix.charCodeAt(i) - 64;
+            if (letterPos >= 5) {
+              var idx = letterPos - 4;
+              counts[idx] = (counts[idx] || 0) + 1;
+              maxIdx = Math.max(maxIdx, idx);
+            }
+          }
+          x.array[0] = [val];
+          var eCount = counts[1] || 0;
+          var fCount = counts[2] || 0;
+          if (fCount > 0 && eCount === 0 && fCount === 1 && maxIdx === 2 && val >= 0 && val === Math.floor(val)) {
+            if (val === 0) {
+              x.array = [[1]];
+            } else if (val === 1) {
+              x.array = [[10]];
+            } else {
+              x.array[0] = [10000000000, val - 2];
+            }
+          } else if (maxIdx === 1) {
+            x.array[0][1] = eCount;
+          } else {
+            for (var idx = 1; idx <= maxIdx; idx++) {
+              x.array[0][idx] = counts[idx] || 0;
+            }
+          }
+          if (negateIt) x.sign = -1;
+          return x.normalize();
+        }
+      }
+
+      var num = Number(rem);
+      if (!isNaN(num) && isFinite(num)) {
+        x.array[0][0] = num;
+      }
+    }
+
+    if (negateIt) x.sign = -1;
+    return x.normalize();
+  };
+
+  P.clone = function () {
+    var x = new MetaNum();
+    x.array = deepCloneArray(this.array);
+    x.sign = this.sign;
+    x.layer = this.layer;
+    return x;
+  };
+
+  function objectCreate() {
+    var x = {};
+    x.array = [[0]];
+    x.sign = 1;
+    x.layer = 0;
+    return x;
+  }
+
+  function clone(obj) {
+    var i, p, ps;
+    function MetaNum(input, input2, input3) {
+      var x = this;
+      if (!(x instanceof MetaNum)) return new MetaNum(input, input2, input3);
+      x.constructor = MetaNum;
+
+      if (input === undefined || input === null) {
+        x.array = [[0]];
+        x.sign = 1;
+        x.layer = 0;
+        return x;
+      }
+
+      var parsedObject = null;
+      if (typeof input === "string" && (input[0] === "[" || input[0] === "{")) {
+        try {
+          parsedObject = JSON.parse(input);
+        } catch (e) {}
+      }
+
+      var temp;
+      if (typeof input === "number" && input2 === undefined) {
+        temp = objectCreate();
+        temp.array = [[Math.abs(input)]];
+        temp.sign = input < 0 ? -1 : 1;
+        temp.layer = 0;
+        temp.normalize = P.normalize;
+        temp = temp.normalize();
+      } else if (parsedObject) {
+        temp = Q.fromObject(parsedObject);
+      } else if (typeof input === "string") {
+        temp = Q.fromString(input);
+      } else if (Array.isArray(input)) {
+        temp = Q.fromArray(input, input2, input3);
+      } else if (input instanceof MetaNum) {
+        temp = input;
+      } else if (typeof input === "object" && input !== null) {
+        temp = Q.fromObject(input);
+      } else {
+        temp = objectCreate();
+        var num = Number(input);
+        if (!isNaN(num) && isFinite(num)) {
+          temp.array = [[Math.abs(num)]];
+          temp.sign = num < 0 ? -1 : 1;
+          temp.layer = 0;
+          temp.normalize = P.normalize;
+          temp = temp.normalize();
+        } else if (isNaN(num)) {
+          temp.array = [[NaN]];
+        } else {
+          temp.array = [[Infinity]];
+          temp.sign = num < 0 ? -1 : 1;
+        }
+      }
+
+      x.array = deepCloneArray(temp.array);
+      x.sign = temp.sign;
+      x.layer = temp.layer;
+      if (temp._oaIsDiag !== undefined) x._oaIsDiag = temp._oaIsDiag;
+      if (temp._oaRowData !== undefined) x._oaRowData = temp._oaRowData.map(function(d) { return {isDiag: d.isDiag}; });
+
+      return x;
+    }
+
+    MetaNum.prototype = P;
+
+    MetaNum.JSON = 0;
+    MetaNum.STRING = 1;
+
+    MetaNum.NONE = 0;
+    MetaNum.NORMAL = 1;
+    MetaNum.ALL = 2;
+
+    // expandOrdinals: Generate all Cantor normal form terms below a given ordinal level
+    // cantorLevel: determines max nesting depth (diag range and numVals range)
+    // maxVal: determines value range (0..maxVal) for each position
+    // Returns array of ordinal rows [[1, v0, diag], [1, v0, v1, diag], ...]
+    MetaNum.expandOrdinals = function (cantorLevel, maxVal) {
+      var rows = [];
+      var maxRows = MetaNum.maxCols - 1; // 99
+
+      if (cantorLevel < 0) cantorLevel = 0;
+
+      // Generate all combinations: numVals outer, diag inner (for increasing ordinal value)
+      // Order: nv=1(d=1..cantorLevel), nv=2(d=1..cantorLevel), ..., plus special row
+      for (var nv = 1; nv <= cantorLevel && rows.length < maxRows; nv++) {
+        for (var d = 1; d <= cantorLevel && rows.length < maxRows; d++) {
+          var total = Math.pow(maxVal + 1, nv);
+          for (var ci = 0; ci < total && rows.length < maxRows; ci++) {
+            var vals = [];
+            var tmp = ci;
+            for (var k = 0; k < nv; k++) {
+              vals.push(tmp % (maxVal + 1));
+              tmp = Math.floor(tmp / (maxVal + 1));
+            }
+            var row = [1];
+            for (var k = 0; k < nv; k++) row.push(vals[k]);
+            row.push(d);
+            rows.push(row);
+          }
+        }
+      }
+
+      // Add boundary/special row [1, 0, ..., 0, 1] with (cantorLevel+1) zeros + diag=1
+      // For cantorLevel=0: generates the sole row [[1,0,1]] (1 zero)
+      // For cantorLevel>=2: adds the terminal row [1, 0, ..., 0, 1] with cantorLevel+1 zeros
+      // For cantorLevel=1: skip (not needed)
+      if ((cantorLevel === 0 || cantorLevel >= 2) && rows.length < maxRows) {
+        var bRow = [1];
+        var zeroCount = (cantorLevel === 0) ? 1 : (cantorLevel + 1);
+        for (var k = 0; k < zeroCount; k++) bRow.push(0);
+        bRow.push(1);
+        rows.push(bRow);
+      }
+
+      return rows;
+    };
+
+    // getCantorLevel: map operation level to expandOrdinals cantorLevel
+    // v0 values: 0=ω+1, 1=ω*2+1, 2=ω*3+1, 3-5=ω^ω range,
+    //            6=ω^2+1, 7=ω^2+ω, 8=ω^2+ω+1, 9=ω^2*2,
+    //            10=ω^3, 11=ω^3+1, ...
+    MetaNum.getCantorLevel = function (levelN) {
+      // For now, simple mapping based on known cases
+      if (levelN <= 0) return 0;     // ω+1: expande
+      if (levelN <= 2) return 1;     // ω*2+1 through ω*3+1
+      if (levelN <= 5) return 1;     // ω^ω diagonalization range
+      if (levelN <= 9) return 1;     // ω^2 range
+      if (levelN <= 11) return 2;    // ω^3 range
+      // Default: use levelN / some factor
+      return Math.min(Math.floor(levelN / 5) + 1, MetaNum.maxCols);
+    };
+
+    MetaNum.clone = clone;
+    MetaNum.config = MetaNum.set = config;
+
+    for (var prop in Q) {
+      if (Q.hasOwnProperty(prop)) {
+        MetaNum[prop] = Q[prop];
+      }
+    }
+
+    if (obj === void 0) obj = {};
+    if (obj) {
+      ps = ['maxRows', 'maxCols', 'maxArrow', 'serializeMode', 'debug'];
+      for (i = 0; i < ps.length;) if (!obj.hasOwnProperty(p = ps[i++])) obj[p] = this[p];
+    }
+
+    MetaNum.config(obj);
+
+    return MetaNum;
+  }
+
+  function defineConstants(obj) {
+    for (var prop in R) {
+      if (R.hasOwnProperty(prop)) {
+        var val = R[prop];
+        if (typeof val === "string") {
+          obj[prop] = val;
+        } else if (Object.defineProperty) {
+          Object.defineProperty(obj, prop, {
+            configurable: false,
+            enumerable: true,
+            writable: false,
+            value: new MetaNum(val)
+          });
+        } else {
+          obj[prop] = new MetaNum(val);
         }
       }
     }
-    if (MetaNum.debug >= MetaNum.ALL) console.log("up/down layer: " + this);
-  // to be continued
+    return obj;
+  }
 
-  }while(b);
-  return x;
-}
-P.toNumber=function (){
-  if (MetaNum.debug >= MetaNum.ALL) console.log(this + " to number");
-  if (this.sign==-1) return -1*this.abs();
-  if (this.brrby.length>=1&&(this.brrby[0]>=2||this.brrby[0]==1&&this.array>Math.log10(Number.MAX_VALUE))) return Infinity;
-  if (this.brrby[0]==1) return Math.pow(10,this.array);
-  return this.array;
-}
-P.toString=function (){
-  if (this.array == 0) return '0';
-  if (isNaN(this.array)) return "NaN";
-  if (!isFinite(this.array)) return "Infinity";
-  const signStr = this.sign === -1 ? '-' : '';
-  let term;
-  if (this.layer == 0) {
-    return `${signStr}${this.array}`;
-  }
-  else if(this.layer == 1){
-    var s=signStr;
-    if (this.brrby.length>=1){
-      for (var i=this.brrby.length;i>=2;--i){
-        var q=String.fromCharCode(68+i);
-        if (this.brrby[i-1]>1) s+=q+"^"+this.brrby[i-1];
-        else if (this.brrby[i-1]==1) s+=q;
+  function config(obj) {
+    if (!obj || typeof obj !== 'object') {
+      throw Error(metaNumError + 'Object expected');
+    }
+    var i, p, v,
+      ps = [
+        'maxRows', 1, 1000,
+        'maxCols', 1, 1000,
+        'maxArrow', 1, Number.MAX_SAFE_INTEGER,
+        'serializeMode', 0, 1,
+        'debug', 0, 2
+      ];
+    for (i = 0; i < ps.length; i += 3) {
+      if ((v = obj[p = ps[i]]) !== void 0) {
+        if (Math.floor(v) === v && v >= ps[i + 1] && v <= ps[i + 2]) this[p] = v;
+        else throw Error(invalidArgument + p + ': ' + v);
       }
     }
-    if (this.brrby[0] < 3) {
-      if (this.brrby[0] >= 1) s += "E".repeat(this.brrby[0] - 1) + Math.pow(10, this.array - Math.floor(this.array)) + "E" + Math.floor(this.array);
-      else s += this.array;
-    }
-    else s+="E^"+this.brrby[0]+" "+this.array;
-    return s;
+    return this;
   }
-  else if(this.layer == 2){
-    let result = '';
-    for (let i = this.crrcy.length - 1; i >= 0; i--) {
-      if (this.brrby[i] === 0) continue;
-      const coeff = this.brrby[i]==1?'':'*'+this.brrby[i];
-      const row = this.crrcy[i] || [];
-      const expStr = formatAsExponents(row);
-      if (expStr === '0') continue;
-      term =expStr[0]=='ω'?`ω^(${expStr})${coeff}`:`ω^${expStr}${coeff}`;
-      if (expStr === '1') term=`ω${coeff}`;
-      if (result === '') {
-      result = term;
-      } else {
-      result += '+' + term;
-      }
-    }
-    return `${signStr}H_${result}_(${this.array})`;
-  }
-  else if(this.layer == 3){
-    let result = '';
-    for (let i = this.drrdy.length - 1; i >= 0; i--) {
-      const coeff = this.brrby[i];
-      if (coeff === 0) continue;
-      const matrix = this.crrcy[i] || [];
-      const expStr = formatNestedExponents(matrix);
-      if (expStr === '0') continue;
-      term =expStr[0]=='ω'?`ω^(${expStr})*${coeff}`:`ω^${expStr}*${coeff}`;
-      if (result === '') {
-        result = term;
-      } else {
-        result += '+' + term;
-      }
-    }
-    return `${signStr}H_${result}_(${this.array})`;
-  }
-  else if(this.layer >= 4){
-    let result = '';
-    for (let i = this.drrdy.length; i >= 0; i--) {
-      const coeff = this.brrby[i];
-      if (coeff === 0) continue;
-      const matrix = this.crrcy[i] || [];
-      const expStr = formatNestedExponents(matrix);
-      if (expStr === '0') continue;
-      term = `ω^(${expStr})*${coeff}`;
-      if (result === '') {
-        result = term;
-      } else {
-        result += '+' + term;
-      }
-    }
-    const towerHeight = this.layer - 3;
-    let tower = 'ω';
-    tower = `(ω^)^${towerHeight}`;
-    return `${signStr}H_${tower} ${result}_(${this.array})`;
-  }
-};
-function formatAsExponents(arr) {
-    let result = '';
-    for (let i = arr.length - 1; i >= 0; i--) {
-      if (arr[i] === 0) continue;
-      if (result !== '') result += '+';
-      if (i === 0) {
-        result += `${arr[i]}`;
-      } else if (i === 1) {
-        result += `ω*${arr[i]}`;
-      } else {
-        result += `ω^${i}*${arr[i]}`;
-      }
-    }
-    return result || '0';
-}
-function formatNestedExponents(matrix) {
-    let result = '';
-    for (let i = matrix.length - 1; i >= 0; i--) {
-      const row = matrix[i];
-      if (!Array.isArray(row)) continue;
-      const rowStr = formatAsExponents(row);
-      if (rowStr === '0') continue;
-      if (result !== '') result += '+';
-      result += rowStr;
-    }
-    return result || '0';
-}
-P._sumBrrby=function(brrby) {
-  let sum = 0;
-  for (let i = 0; i < brrby.length; i++) {
-    sum += brrby[i] * Math.pow(10, i);
-  }
-  return sum;
-};
-P._sumCrrcyRow=function(row) {
-  if (row.length === 0) return 0;
-  return row;
-};
-P._sumCrrcy=function(crrcy) {
-  return crrcy;
-};
-P._sumDrrdy=function(drrdy) {
-  let sum = 0;
-  for (let i = 0; i < drrdy.length; i++) {
-    sum += this._sumCrrcy(drrdy[i]) * Math.pow(10, i);
-  }
-  return sum;
-};
-P._highestExponent=function() {
-  const n = this.brrby.length - 1;
-  if (this.layer === 0) return 0;
-  if (this.layer === 1) return n;
-  if (this.layer === 2) return this._sumCrrcy(this.crrcy);
-  if (this.layer >= 3) return this._sumDrrdy(this.drrdy);
-  return n;
-};
-P._getHighestMultiplier=function() {
-  const n = this.brrby.length - 1;
-  return this.brrby[n] || 0;
-};
-P._exponentsToString=function(exponents, layer) {
-  if (layer === 0) return "";
-  if (layer === 1) return `ω^${exponents}`;
-  if (layer === 2) return `ω^(ω^${exponents})`;
-  return `ω^(${exponents})`;
-};
-P.toJSON=function (){
-  if (MetaNum.serializeMode==MetaNum.JSON){
-    return {
-      sign:this.sign,
-      layer:this.layer,
-      array:this.array.slice(0),
-      brrby:this.brrby.slice(0),
-      crrcy:this.crrcy.slice(0),
-      drrdy:this.drrdy.slice(0)
-    };
-  }
-  else if (MetaNum.serializeMode==MetaNum.STRING){
-    return this.toString();
-  }
-};
-P.toHyperE=function (){
-  if (this.sign==-1) return "-"+this.abs().toHyperE();
-  if (isNaN(this.array)) return "NaN";
-  if (!isFinite(this.array)) return "Infinity";
-  if (this.lt(MetaNum.MAX_SAFE_INTEGER)) return String(this.array);
-  if (this.lt(MetaNum.E_MAX_SAFE_INTEGER)) return "E"+this.array;
-  var r="E"+this.array+"#"+this.brrby[0];
-  for (var i=2;i<this.brrby.length-1;++i){
-    r+="#"+(this.brrby[i-1]+1);
-  }
-  return r;
-};
-Q.fromNumber = function(input) {
-  if (typeof input!="number") throw Error(invalidArgument+"Expected Number");
-  var x=new MetaNum();
-  x.array=Math.abs(input);
-  x.sign=input<0?-1:1;
-  x.normalize();
-  if (MetaNum.debug >= MetaNum.ALL) console.log(input+"fromNumber->",x);
-  return x;
-};
-Q.fromString = function(input) {
-  // MetaNum中最果糕的函数之二
-  var x = new MetaNum();
-  
-  // 处理特殊值
-  if (input === "NaN") {
-    x.array = NaN;
-    x.normalize();
-    return x;
-  } else if (input === "Infinity") {
-    x.array = Infinity;
-    x.normalize();
-    return x;
-  }
-  
-  // 处理符号
-  if (input.charAt(0) === '-') {
-    x.sign = -1;
-    input = input.slice(1);
+
+  MetaNum = clone(MetaNum);
+  MetaNum = defineConstants(MetaNum);
+  MetaNum['default'] = MetaNum.MetaNum = MetaNum;
+
+  if (typeof define == 'function' && define.amd) {
+    define(function () {
+      return MetaNum;
+    });
+  } else if (typeof module != 'undefined' && module.exports) {
+    module.exports = MetaNum;
   } else {
-    x.sign = 1;
-  }
-  
-  // 情况1：纯数字（整数或实数）
-  if (/^\d+(\.\d+)?$/.test(input)) {
-    x.layer = 0;
-    x.array = parseFloat(input);
-    x.normalize();
-    return x;
-  }
-  
-  // 情况2：数字y + E/e + 数字z（无前导E）
-  if (/^(\d+)([Ee])(-?\d+(\.\d+)?)$/.test(input)) {
-    var match2 = input.match(/^(\d+)([Ee])(-?\d+(\.\d+)?)$/);
-    var yVal = parseFloat(match2[1]);
-    var zVal = parseFloat(match2[3]);
-    x.layer = 1;
-    x.array = zVal + Math.log10(yVal);
-    x.brrby = [1];
-    x.normalize();
-    return x;
-  }
-  
-  // 情况2b：x个E/e（x>=1）+ 数字y + E/e + 数字z
-  if (/^([Ee]+)(\d+)([Ee])(-?\d+(\.\d+)?)$/.test(input)) {
-    var match2b = input.match(/^([Ee]+)(\d+)([Ee])(-?\d+(\.\d+)?)$/);
-    var xCount = match2b[1].length;
-    var yVal2 = parseFloat(match2b[2]);
-    var zVal2 = parseFloat(match2b[4]);
-    x.layer = 1;
-    x.array = zVal2 + Math.log10(yVal2);
-    x.brrby = [xCount + 1];
-    x.normalize();
-    return x;
-  }
-  
-  // 情况2c：x个E/e（x>=1）+ 数字z（只有E和数字）
-  if (/^([Ee]+)(\d+)$/.test(input)) {
-    var match2c = input.match(/^([Ee]+)(\d+)$/);
-    var xCountc = match2c[1].length;
-    var zValc = parseFloat(match2c[2]);
-    x.layer = 1;
-    x.array = zValc;
-    x.brrby = [xCountc];
-    x.normalize();
-    return x;
-  }
-  
-  // 情况3：数字y + F + 数字z（无前导F）
-  if (/^(\d+)F(-?\d+(\.\d+)?)$/.test(input)) {
-    var match3 = input.match(/^(\d+)F(-?\d+(\.\d+)?)$/);
-    var fyVal = parseFloat(match3[1]);
-    var fzVal = parseFloat(match3[2]);
-    x.layer = 1;
-    x.array = fzVal + Math.log10(fyVal);
-    x.brrby = [0, 1];
-    x.normalize();
-    return x;
-  }
-  
-  // 情况3b：x个F/f（x>=1）+ 数字y + F + 数字z
-  if (/^([Ff]+)(\d+)F(-?\d+(\.\d+)?)$/.test(input)) {
-    var match3b = input.match(/^([Ff]+)(\d+)F(-?\d+(\.\d+)?)$/);
-    var fxCount = match3b[1].length;
-    var fyVal2 = parseFloat(match3b[2]);
-    var fzVal2 = parseFloat(match3b[3]);
-    x.layer = 1;
-    x.array = fzVal2 + Math.log10(fyVal2);
-    x.brrby = [0, fxCount + 1];
-    x.normalize();
-    return x;
-  }
-  
-  // 情况3c：x个F/f（x>=1）+ 数字z（只有F和数字）
-  if (/^([Ff]+)(\d+)$/.test(input)) {
-    var match3c = input.match(/^([Ff]+)(\d+)$/);
-    var fxCountc = match3c[1].length;
-    var fzValc = parseFloat(match3c[2]);
-    x.layer = 1;
-    x.array = fzValc;
-    x.brrby = [0, fxCountc];
-    x.normalize();
-    return x;
-  }
-  
-  // 情况4：数字y + E/e + 数字z + F + 数字w
-  if (/^(\d+)([Ee])(\d+)F(\d+)$/.test(input)) {
-    var match4 = input.match(/^(\d+)([Ee])(\d+)F(\d+)$/);
-    var mixYVal = parseFloat(match4[1]);
-    var mixZVal = parseFloat(match4[3]);
-    var mixWVal = parseFloat(match4[4]);
-    x.layer = 1;
-    x.array = mixWVal + Math.log10(mixZVal);
-    x.brrby = [1, mixYVal + 1];
-    x.normalize();
-    return x;
-  }
-  
-  // 情况4b：x个E/e + 数字y + E/e + 数字z + F + 数字w
-  if (/^([Ee]+)(\d+)([Ee])(\d+)F(\d+)$/.test(input)) {
-    var match4b = input.match(/^([Ee]+)(\d+)([Ee])(\d+)F(\d+)$/);
-    var mixXCount = match4b[1].length;
-    var mixYVal2 = parseFloat(match4b[2]);
-    var mixZVal2 = parseFloat(match4b[4]);
-    var mixWVal2 = parseFloat(match4b[5]);
-    x.layer = 1;
-    x.array = mixWVal2 + Math.log10(mixZVal2);
-    x.brrby = [mixXCount + 1, mixYVal2 + 1];
-    x.normalize();
-    return x;
-  }
-
-  //情况5：G+数字
-  if (/^([Gg]+)(\d+)$/.test(input)) {
-    let match5 = input.match(/^([Gg]+)(\d+)$/);
-    let count = match5[1].length;
-    let num = parseFloat(match5[2]);
-    x.layer = 1;
-    x.array = num;
-    x.brrby = [0, 0, count];
-    x.normalize();
-    return x;
-  }
-
-  //情况6：H+数字
-  if (/^([Hh]+)(\d+)$/.test(input)) {
-    let match6 = input.match(/^([Hh]+)(\d+)$/);
-    let count = match6[1].length;
-    let num = parseFloat(match6[2]);
-    x.layer = 1;
-    x.array = num;
-    x.brrby = [0, 0, 0, count];
-    x.normalize();
-    return x;
-  }
-  
-  // 科学计数法形式（仅当结果在安全范围内）
-  if (/^-?\d+(\.\d+)?[eE]-?\d+$/.test(input)) {
-    var sciMatch = input.match(/^(-?\d+(\.\d+)?)[eE](-?\d+)$/);
-    var base = sciMatch[1] ? parseFloat(sciMatch[1]) : 1;
-    var exp = parseFloat(sciMatch[3]);
-    var result = base * Math.pow(10, exp);
-    if (result <= Number.MAX_SAFE_INTEGER) {
-      x.layer = 0;
-      x.array = result;
-      x.brrby = [0];
-    } else {
-      x.layer = 1;
-      x.array = exp;
-      x.brrby = [1];
+    if (!globalScope) {
+      globalScope = typeof self != 'undefined' && self && self.self == self
+        ? self : Function('return this')();
     }
-    x.normalize();
-    return x;
+    globalScope.MetaNum = MetaNum;
   }
-  
-  // 默认情况
-  x.layer = 0;
-  x.array = 0;
-  x.normalize();
-      if (MetaNum.debug >= MetaNum.ALL) console.log(input+"fromString->",x);
-  return x;
-};
-Q.fromFormat=function (str){
-  // 移除首尾空格
-  str=str.trim();
-  // 快速提取 key=value 片段
-  const m=str.match(/^(s(-?\d+)\s+l(\d+)\s+a([+-]?\d+(?:\.\d+)?)\s+b(\[.*?\])\s+c(\[.*?\])\s+d(\[.*?\]))$/);
-  if(!m) throw new Error('MetaNum.fromFormat: expected format');
-  // 解析各段
-  const sign = parseInt(m[2],10);
-  const layer= parseInt(m[3],10);
-  const array= parseFloat(m[4]);
-  // 用 Function 安全地把数组字符串变成数组
-  const brrby=Function('"use strict";return ('+m[5]+')')();
-  const crrcy=Function('"use strict";return ('+m[6]+')')();
-  const drrdy=Function('"use strict";return ('+m[7]+')')();
-  // 组装并归一化
-  const x=Q.fromArray(sign,layer,array,brrby,crrcy,drrdy);
-  if(MetaNum.debug>=MetaNum.ALL) console.log(str+'fromFormat->',x);
-  return x;
-}
-Q.fromArray=function (input1,input2,input3,input4,input5,input6){
-  var x=new MetaNum();
-  x.sign=input1;
-  x.layer=input2;
-  x.array=input3;
-  x.brrby=input4;
-  x.crrcy=input5;
-  x.drrdy=input6;
-  x.normalize();
-  if (MetaNum.debug >= MetaNum.ALL) console.log("fromArray->",x);
-  return x;
-}
-Q.fromObject=function (input){
-  var x=new MetaNum();
-  x.sign=input.sign;
-  x.layer=input.layer;
-  x.array=input.array;
-  x.brrby=input.brrby;
-  x.crrcy=input.crrcy;
-  x.drrdy=input.drrdy;
-  x.normalize();
-  if (MetaNum.debug >= MetaNum.ALL) console.log(input+"fromObject->",x);
-  return x;
-}
-Q.fromJSON=function (input){
-  var obj=JSON.parse(input);
-  return Q.fromObject(obj);
-}
-P.clone = function() {
-  var temp = new MetaNum();
-  temp.sign = this.sign;
-  temp.layer = this.layer;
-  temp.array = this.array;
-  temp.brrby = this.brrby;
-  temp.crrcy = this.crrcy;
-  temp.drrdy = this.drrdy;
-  return temp;
-};
-// end region operators
-
-//region toglobalscope
-function clone(obj) {
-  var i, p, ps;
-  function MetaNum(input,input2,input3,input4,input5,input6) {
-    var x=this;
-    if (!(x instanceof MetaNum)) return new MetaNum(input);
-    x.constructor=MetaNum;
-    var parsedObject=null;
-    if (typeof input=="string"&&(input[0]=="["||input[0]=="{")){
-      try {
-        parsedObject=JSON.parse(input);
-      }catch(e){
-        console.error("😰")
-      }
-    }
-    var temp,temp2,temp3,temp4,temp5,temp6;
-    if (typeof input=="number" && typeof input2=="undefined"){
-      temp=MetaNum.fromNumber(input);
-    }else if (typeof input2=="number"){
-      temp=MetaNum.fromArray(input,input2,input3,input4,input5,input6);
-    }else if (typeof input=="string" && input[0]=="s"){
-      temp=MetaNum.fromFormat(input);
-    }else if (typeof input=="string"){
-      temp=MetaNum.fromString(input);
-    }else if (parsedObject){
-      temp=MetaNum.fromObject(parsedObject);
-    }else if (typeof input == "object") {
-      temp=MetaNum.fromObject(input);
-    }else if (input instanceof MetaNum){
-      temp = input.clone();
-    }else{
-      temp=1;
-      temp2=0;
-      temp3=NaN;
-      temp4=[0];
-      temp5=[[0]];
-      temp6=[[[0]]];
-    }
-    if (typeof temp2=="undefined"){
-      x.sign=temp.sign;
-      x.layer=temp.layer;
-      x.array=temp.array;
-      x.brrby=temp.brrby;
-      x.crrcy=temp.crrcy;
-      x.drrdy=temp.drrdy;
-    }else{
-      x.sign=temp;
-      x.layer=temp2;
-      x.array=temp3;
-      x.brrby=temp4;
-      x.crrcy=temp5;
-      x.drrdy=temp6;
-    }
-  }
-  MetaNum.prototype = P;
-
-  MetaNum.JSON = 0;
-  MetaNum.STRING = 1;
-
-  MetaNum.NONE = 0;
-  MetaNum.NORMAL = 1;
-  MetaNum.ALL = 2;
-
-  MetaNum.clone = clone;
-  MetaNum.config = MetaNum.set = config
-  
-  for (var prop in Q){
-    if (Q.hasOwnProperty(prop)){
-      MetaNum[prop]=Q[prop];
-    }
-  }
-
-  if (obj === void 0) obj = {};
-  if (obj) {
-    ps = ['maxOps', 'serializeMode', 'debug'];
-    for (i = 0; i < ps.length;) if (!obj.hasOwnProperty(p = ps[i++])) obj[p] = this[p];
-  }
-
-  MetaNum.config(obj);
-
-  return MetaNum;
-}
-
-function defineConstants(obj){
-  for (var prop in R){
-    if (R.hasOwnProperty(prop)){
-      if (Object.defineProperty){
-        Object.defineProperty(obj,prop,{
-          configurable: false,
-          enumerable: true,
-          writable: false,
-          value: new MetaNum(R[prop])
-        });
-      }else{
-        obj[prop]=new MetaNum(R[prop]);
-      }
-    }
-  }
-  return obj;
-}
-
-function config(obj){
-  if (!obj||typeof obj!=='object') {
-    throw Error(MetaNumError+'Object expected');
-  }
-  var i,p,v,
-    ps = [
-      'maxOps',1,Number.MAX_SAFE_INTEGER,
-      'serializeMode',0,1,
-      'debug',0,2
-    ];
-  for (i = 0; i < ps.length; i += 3) {
-    if ((v = obj[p = ps[i]]) !== void 0) {
-      if (Math.floor(v) === v && v >= ps[i + 1] && v <= ps[i + 2]) this[p] = v;
-      else throw Error(invalidArgument + p + ': ' + v);
-    }
-  }
-  return this;
-}
-
-// Create and configure initial MetaNum constructor.
-MetaNum=clone(MetaNum);
-MetaNum=defineConstants(MetaNum);
-MetaNum['default']=MetaNum.MetaNum=MetaNum;
-
-// Export.
-// AMD(Asynchronous Module Definition)
-if (typeof define == 'function' && define.amd) {
-  define(function () {
-    return MetaNum;
-  });
-// Node and other environments that support module.exports.
-} else if (typeof module != 'undefined' && module.exports) {
-  module.exports = MetaNum;
-// Browser.
-} else {
-  if (!globalScope) {
-    globalScope = typeof self != 'undefined' && self && self.self == self
-      ? self : Function('return this')();
-  }
-  globalScope.MetaNum = MetaNum;
-}
-// end region toglobalscope
 })(this);
