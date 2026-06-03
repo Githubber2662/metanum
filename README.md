@@ -1,6 +1,6 @@
 # MetaNum
 
-- MetaNum v1.0 by dlsdl
+- MetaNum v1.1 by dlsdl
 
 A huge number library holding up to X↑↑X&9e15.
 
@@ -29,8 +29,8 @@ const b = MetaNum.fromNumber(-3.14);
 const c = new MetaNum("1.5e308");
 const d = MetaNum.fromString("10^^5");            // tetration: 10^^5
 const e = MetaNum.fromString("E100#2");           // Hyper-E: 10^10^100 (googolplex)
-const f = MetaNum.fromString("GF^2E^3 123");      // letter notation
-const g = MetaNum.fromString("F3 100");           // GF^2E^3 = 10↑↑↑10↑↑10↑↑10↑10↑10↑123
+const f = MetaNum.fromString("GF^2 E^3 123");     // letter notation
+const g = MetaNum.fromString("Aa100");            // letter notation
 const h = MetaNum.fromString("[[10], [1, 3]]");   // bracket notation
 
 // From an array
@@ -51,17 +51,8 @@ const n = MetaNum.fromHyperE("EE100");
 ## Constants
 
 ```javascript
-MetaNum.ZERO               // 0
-MetaNum.ONE                // 1
-MetaNum.TWO                // 2
-MetaNum.TEN                // 10
-MetaNum.E                  // Math.E
-MetaNum.LN2                // Math.LN2
-MetaNum.LN10               // Math.LN10
-MetaNum.PI                 // π
-MetaNum.SQRT2              // √2
 MetaNum.MAX_SAFE_INTEGER   // 9007199254740991
-MetaNum.NaN                // NaN
+MetaNum.E_
 MetaNum.POSITIVE_INFINITY  // Infinity
 MetaNum.NEGATIVE_INFINITY  // -Infinity
 MetaNum.GRAHAMS_NUMBER     // Graham's number (approximation)
@@ -561,8 +552,6 @@ The Definiton of more symbols is similar to the definition of @Aa.
 
 $Aa \~ f\_ω^ω^ω^ω^ω\_(10)
 
-And there are more symbols : % & \~ < > ? and symbol combinations like !!, !@, !#, @!.
-
 Then we can define (the β-th symbol or symbol combination)Aa = f\_ω^ω^...^ω(β+1 ω's)\_(10)
 
 ### Definition of the final letter: ε
@@ -575,6 +564,7 @@ Then we can define (the β-th symbol or symbol combination)Aa = f\_ω^ω^...^ω(
 
 ## Update log
 
+- 2026-6-3 v1.1 Add support for very small numbers ,add more hyper operations and fix bugs
 - 2026-5-23 v1.0 Rewritten and add even more hyper operations
 - 2026-2-24 v0.4 Add hyper operations and extend fromString
 - 2026-2-11 v0.3 Reconstruct code and correct calculating functions

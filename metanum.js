@@ -1,5 +1,5 @@
-//Author: dlsdl v1.0
-//rewritten and add even more hyper operations
+//Author: dlsdl v1.1
+//Add support for very small numbers ,add more hyper operations and fix bugs
 //Code snippets and templates from OmegaNum.js
 
 ;(function (globalScope) {
@@ -27,6 +27,7 @@
 
   R.ZERO = 0;
   R.ONE = 1;
+  R.NEGATIVE_ONE = -1;
   R.TWO = 2;
   R.TEN = 10;
   R.E = Math.E;
@@ -47,7 +48,8 @@
   R.TETRATED_MAX_SAFE_INTEGER = "F" + MAX_SAFE_INTEGER;
   R.PENTATED_MAX_SAFE_INTEGER = "G" + MAX_SAFE_INTEGER;
   R.TRITRI = "[[3638334640023.7783, 7625597484984]]";
-  R.GRAHAMS_NUMBER = "[[3638334640023.7783, 7625597484984, 0, 1],[63,0,1]]";//对3↑↑↑↑3(≈GE^7625597484984 3638334640023.7783)做63次ω级运算
+  R.GRAHAMS_NUMBER = "[[3638334640023.7783,7625597484984,0,1],[63,0,1]]";//对3↑↑↑↑3(≈GE^7625597484984 3638334640023.7783)做63次ω级运算
+  R.TERR3 = "[[10],[1,374389,2],[1,374387,2],[1,374385,2],[1,374383,2],[1,374381,2],[1,374379,2],[1,374377,2],[1,374375,2],[1,374373,2],[1,374371,2]]"; //注意是TERR而不是TREE，详见https://www.bilibili.com/video/BV1X94y1n7D1
   R.QqQe308 = "QqQe308";
 
   function cmpArr(a, b) {
@@ -114,6 +116,37 @@
     np *= n2;
     l -= 3617 / (122400 * np);
     return Math.exp(l) / scal1;
+  };
+
+  var f_logGamma = function (n) {
+    if (!isFinite(n) || n <= 0) return NaN;
+    var scalLog = 0;
+    while (n < 10) {
+      scalLog += Math.log(n);
+      ++n;
+    }
+    n -= 1;
+    var l = 0.9189385332046727;
+    l += (n + 0.5) * Math.log(n);
+    l -= n;
+    var n2 = n * n;
+    var np = n;
+    l += 1 / (12 * np);
+    np *= n2;
+    l -= 1 / (360 * np);
+    np *= n2;
+    l += 1 / (1260 * np);
+    np *= n2;
+    l -= 1 / (1680 * np);
+    np *= n2;
+    l += 1 / (1188 * np);
+    np *= n2;
+    l -= 691 / (360360 * np);
+    np *= n2;
+    l += 7 / (1092 * np);
+    np *= n2;
+    l -= 3617 / (122400 * np);
+    return (l - scalLog) / Math.LN10;
   };
 
   var OMEGA = 0.56714329040978387299997;
@@ -202,8 +235,11 @@
     if (!x.array || !Array.isArray(x.array) || x.array.length === 0) {
       x.array = [[0]];
     }
-    if (x.sign !== 1 && x.sign !== -1) {
-      x.sign = Number(x.sign) < 0 ? -1 : 1;
+    if (x.sign !== 1 && x.sign !== -1 && x.sign !== 2 && x.sign !== -2) {
+      // For invalid signs, try to interpret: negative → -1, positive → 1
+      var s = Number(x.sign);
+      if (isNaN(s)) s = 1;
+      x.sign = s < 0 ? -1 : 1;
     }
     if (typeof x.layer !== 'number' || !isFinite(x.layer) || x.layer < 0) {
       x.layer = 0;
@@ -219,11 +255,13 @@
     if (x.array[0] && x.array[0].length > 0) {
       if (isNaN(x.array[0][0])) {
         x.array = [[NaN]];
+        x.sign = 1;
         x.layer = 0;
         return x;
       }
       if (!isFinite(x.array[0][0])) {
         x.array = [[x.array[0][0] === Infinity ? Infinity : -Infinity]];
+        x.sign = 1;
         x.layer = 0;
         return x;
       }
@@ -238,6 +276,8 @@
       if (i !== 0 && !Number.isInteger(r0[i])) r0[i] = Math.floor(r0[i]);
     }
 
+    var small = isSmall(x);
+
     do {
       b = false;
 
@@ -246,20 +286,21 @@
         b = true;
       }
 
-      if (x.layer === 0 && r0[0] > MAX_SAFE_INTEGER) {
+      // Normalize r0[0] only for non-small values
+      if (!small && x.layer === 0 && r0[0] > MAX_SAFE_INTEGER) {
         r0[1] = (r0[1] || 0) + 1;
         r0[0] = Math.log10(r0[0]);
         b = true;
       }
 
-      while (x.layer === 0 && r0.length > 1 && r0[0] < MAX_E && r0[1]) {
+      while (!small && x.layer === 0 && r0.length > 1 && r0[0] < MAX_E && r0[1]) {
         r0[0] = Math.pow(10, r0[0]);
         r0[1]--;
         b = true;
       }
 
       for (var i = 1; i < r0.length; i++) {
-        if (r0[i] > MAX_SAFE_INTEGER) {
+        if (!small && r0[i] > MAX_SAFE_INTEGER) {
           r0[i + 1] = (r0[i + 1] || 0) + 1;
           r0[0] = r0[i] + 1;
           for (var j = 1; j <= i; j++) r0[j] = 0;
@@ -348,12 +389,16 @@
 
     if (!x.array.length || !x.array[0]) {
       x.array = [[0]];
-      x.sign = 1;
+      x.sign = isSmall(x) ? 2 : 1;
     }
 
-    if (x.array.length === 1 && x.array[0].length === 1 && x.array[0][0] === 0 && x.sign === -1) {
-      x.sign = 1;
+    // Normalize zero sign: 0 is always positive
+    if (x.array.length === 1 && x.array[0].length === 1 && x.array[0][0] === 0 && (x.sign === -1 || x.sign === -2)) {
+      x.sign = x.sign === -2 ? 2 : 1;
     }
+
+    // Layer is managed explicitly by layerUp/layerDown, not computed from array.
+    // Do not recompute layer here - preserve the value set by the caller/parser.
 
     return x;
   };
@@ -366,7 +411,8 @@
 
   P.absoluteValue = P.abs = function () {
     var x = this.clone();
-    x.sign = 1;
+    // sign=1→1, sign=-1→1, sign=2→2, sign=-2→2
+    x.sign = x.sign === 2 || x.sign === -2 ? 2 : 1;
     return x;
   };
   Q.absoluteValue = Q.abs = function (x) {
@@ -375,7 +421,8 @@
 
   P.negate = P.neg = function () {
     var x = this.clone();
-    x.sign = x.sign * -1;
+    // 1↔-1, 2↔-2
+    x.sign = x.sign === 1 ? -1 : x.sign === -1 ? 1 : x.sign === 2 ? -2 : 2;
     return x.normalize();
   };
   Q.negate = Q.neg = function (x) {
@@ -402,9 +449,28 @@
     var oAllZero = (other.array.length === 1 && other.array[0].length === 1 && other.array[0][0] === 0);
     if (tAllZero && oAllZero) return 0;
 
-    if (this.sign !== other.sign) return this.sign;
+    // Small value comparison (similar to PowiainaNum)
+    var tSmall = isSmall(this);
+    var oSmall = isSmall(other);
+    var tNormSign = toNormalizedSign(this.sign);
+    var oNormSign = toNormalizedSign(other.sign);
 
-    var m = this.sign;
+    if (tNormSign !== oNormSign) return tNormSign;
+
+    // If one is small and the other is not
+    // Special case: if the non-small value is zero, the small value's sign determines the result
+    if (tSmall && !oSmall) {
+      if (oAllZero) return tNormSign; // small positive > 0, small negative < 0
+      return tNormSign === 1 ? -1 : 1;
+    }
+    if (oSmall && !tSmall) {
+      if (tAllZero) return -oNormSign; // 0 < small positive, 0 > small negative
+      return tNormSign === 1 ? 1 : -1;
+    }
+
+    var m = tNormSign;
+    // If both are small, reverse comparison
+    if (tSmall && oSmall) m = -m;
 
     if (this.layer !== other.layer) {
       return (this.layer > other.layer ? 1 : -1) * m;
@@ -528,7 +594,7 @@
     if (!(other instanceof MetaNum)) other = new MetaNum(other);
     if (tolerance == null) tolerance = 1e-7;
     if (this.isNaN() || other.isNaN() || this.isFinite() != other.isFinite()) return false;
-    if (this.sign != other.sign) return false;
+    if (toNormalizedSign(this.sign) !== toNormalizedSign(other.sign)) return false;
     if (this.layer !== other.layer) return false;
     var a, b, tR = this.array.length, oR = other.array.length;
     if (tR <= 1 && oR <= 1) {
@@ -603,8 +669,11 @@
     var maxRow = x.array[actualRows - 1];
     x.array[0] = maxRow.slice(0);
     x.array = [x.array[0]];
-    x.layer++;
-    return x.normalize();
+    var savedLayer = x.layer + 1;
+    x.layer = savedLayer;
+    x.normalize();
+    x.layer = savedLayer;
+    return x;
   };
   Q.layerUp = function (x) {
     return new MetaNum(x).layerUp();
@@ -627,8 +696,11 @@
     if (x.array.length < 2) x.array.push([0]);
     x.array[1] = x.array[0].slice(0);
     x.array[0] = [0];
-    x.layer--;
-    return x.normalize();
+    var savedLayer = x.layer - 1;
+    x.layer = savedLayer;
+    x.normalize();
+    x.layer = savedLayer;
+    return x;
   };
   Q.layerDown = function (x) {
     return new MetaNum(x).layerDown();
@@ -638,6 +710,23 @@
     return x.layer === 0 && x.array.length === 1 &&
            x.array[0].length === 1 && isFinite(x.array[0][0]) &&
            Math.abs(x.array[0][0]) <= MAX_SAFE_INTEGER;
+  }
+
+  function isSmall(x) {
+    return x.sign === 2 || x.sign === -2;
+  }
+
+  function computeLayer(arr) {
+    // Layer represents ω^ nesting level above the ordinal represented by the array.
+    // For all normal ordinal operations (up to ω^(maxcols-1) level), layer is 0.
+    // Layer 1 = ω^(array ordinal), layer 2 = ω^ω^(array ordinal), etc.
+    // Layer is managed explicitly by layerUp/layerDown, not computed from array.
+    return 0;
+  }
+
+  function toNormalizedSign(s) {
+    // Map sign=2/-2 to the corresponding normal sign for the array data
+    return s === 2 ? 1 : s === -2 ? -1 : s;
   }
 
   function hyperLevel(n, val) {
@@ -668,7 +757,6 @@
       return x;
     }
     if (count <= 0) return x;
-    x.layer = Math.max(x.layer, 1);
     // Try to merge with existing row at the same level
     for (var i = 1; i < x.array.length; i++) {
       var row = x.array[i];
@@ -688,7 +776,9 @@
     other = new MetaNum(other);
 
     if (x.sign === -1) return x.neg().add(other.neg()).neg();
+    if (x.sign === -2) return x.neg().add(other.neg()).neg();
     if (other.sign === -1) return x.sub(other.neg());
+    if (other.sign === -2) return x.sub(other.neg());
     if (x.eq(MetaNum.ZERO)) return other;
     if (other.eq(MetaNum.ZERO)) return x;
     if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
@@ -696,10 +786,35 @@
     if (x.isInfinite()) return x;
     if (other.isInfinite()) return other;
 
+    // For simple numbers, use direct numeric addition
+    if (isSimple(x) && isSimple(other)) {
+      var directSum = x.toNumber() + other.toNumber();
+      if (isFinite(directSum)) return new MetaNum(directSum);
+    }
+
+    var xIsSmall = isSmall(x);
+    var oIsSmall = isSmall(other);
+
     var p = x.min(other);
     var q = x.max(other);
     var t;
 
+    // If one is normal huge and other is small: huge dominates
+    if (xIsSmall !== oIsSmall) {
+      // One is small, one is normal → the normal (non-small) dominates
+      return oIsSmall ? x.clone() : other.clone();
+    }
+
+    if (xIsSmall && oIsSmall) {
+      // Both small: add as reciprocals, then reciprocalize result
+      var xInv = x.clone(); xInv.sign = 1; // small positive → large positive
+      var oInv = other.clone(); oInv.sign = 1;
+      var sumInv = xInv.add(oInv);
+      var result = sumInv.rec();
+      return result;
+    }
+
+    // Normal (non-small) addition
     if (q.gt(MetaNum.E_MAX_SAFE_INTEGER) || q.div(p).gt(MetaNum.MAX_SAFE_INTEGER)) {
       t = q;
     } else if (!q.array[0][1]) {
@@ -719,8 +834,8 @@
     var x = this.clone();
     other = new MetaNum(other);
 
-    if (x.sign === -1) return x.neg().sub(other.neg()).neg();
-    if (other.sign === -1) return x.add(other.neg());
+    if (x.sign === -1 || x.sign === -2) return x.neg().sub(other.neg()).neg();
+    if (other.sign === -1 || other.sign === -2) return x.add(other.neg());
     if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
     if (x.isInfinite() && other.isInfinite()) return MetaNum.NaN.clone();
     if (x.isInfinite()) return x;
@@ -754,8 +869,12 @@
     var x = this.clone();
     other = new MetaNum(other);
 
-    if (x.sign * other.sign === -1) return x.abs().mul(other.abs()).neg();
-    if (x.sign === -1) return x.abs().mul(other.abs());
+    var xNS = toNormalizedSign(x.sign);
+    var oNS = toNormalizedSign(other.sign);
+    var resultNormSign = xNS * oNS;
+
+    if (resultNormSign === -1) return x.abs().mul(other.abs()).neg();
+    if (x.sign === -2 || x.sign === -1) return x.abs().mul(other.abs());
     if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ZERO) && other.isInfinite()) return MetaNum.NaN.clone();
     if (x.isInfinite() && other.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
@@ -768,9 +887,25 @@
 
     if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) return x.max(other);
 
-    var n = x.toNumber() * other.toNumber();
-    if (n <= MAX_SAFE_INTEGER) return new MetaNum(n);
-    return MetaNum.pow(10, x.log10().add(other.log10()));
+    if (isSimple(x) && isSimple(other) && !isSmall(x) && !isSmall(other)) {
+      var nx = x.array[0][0];
+      var ny = other.array[0][0];
+      var n = nx * ny;
+      if (isFinite(n) && n !== 0 && Math.abs(n) <= MAX_SAFE_INTEGER) {
+        if (Math.abs(n) < 1) return new MetaNum(1 / Math.abs(n)).rec();
+        return new MetaNum(n);
+      }
+    }
+
+    // General case: result = 10^(log10(x) + log10(y))
+    var logSum = x.log10().add(other.log10());
+    // If logSum is negative (result < 1), compute as reciprocal of positive power
+    if (logSum.sign === -1) {
+      var posLog = logSum.abs();
+      var posResult = MetaNum.pow(MetaNum.TEN, posLog);
+      return posResult.rec();
+    }
+    return MetaNum.pow(MetaNum.TEN, logSum);
   };
   Q.times = Q.mul = function (x, y) {
     return new MetaNum(x).mul(y);
@@ -780,8 +915,12 @@
     var x = this.clone();
     other = new MetaNum(other);
 
-    if (x.sign * other.sign === -1) return x.abs().div(other.abs()).neg();
-    if (x.sign === -1) return x.abs().div(other.abs());
+    var xNS = toNormalizedSign(x.sign);
+    var oNS = toNormalizedSign(other.sign);
+    var resultNormSign = xNS * oNS;
+
+    if (resultNormSign === -1) return x.abs().div(other.abs()).neg();
+    if (x.sign === -2 || x.sign === -1) return x.abs().div(other.abs());
     if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
     if (x.isInfinite() && other.isInfinite()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ZERO) && other.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
@@ -791,14 +930,40 @@
     if (x.isInfinite()) return x;
     if (other.isInfinite()) return MetaNum.ZERO.clone();
 
-    if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) return x.gt(other) ? x.clone() : MetaNum.ZERO.clone();
+    if (x.max(other).gt(MetaNum.EE_MAX_SAFE_INTEGER)) {
+      // Only shortcut if the result would be dominated by one operand
+      if (x.gt(other)) return x.clone();
+      // Otherwise compute properly (result is a small value)
+      var logDiff = x.log10().sub(other.log10());
+      if (logDiff.sign === -1) {
+        return MetaNum.pow(MetaNum.TEN, logDiff.abs()).rec();
+      }
+      return MetaNum.pow(MetaNum.TEN, logDiff);
+    }
 
-    var n = x.toNumber() / other.toNumber();
-    if (n <= MAX_SAFE_INTEGER) return new MetaNum(n);
-    var pw = MetaNum.pow(10, x.log10().sub(other.log10()));
-    var fp = pw.floor();
-    if (pw.sub(fp).lt(new MetaNum(1e-9))) return fp;
-    return pw;
+    if (x.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
+    if (isSimple(x) && isSimple(other) && !isSmall(x) && !isSmall(other)) {
+      var nx = x.array[0][0];
+      var ny = other.array[0][0];
+      var n = nx / ny;
+      if (isFinite(n) && n !== 0 && Math.abs(n) <= MAX_SAFE_INTEGER) {
+        if (Math.abs(n) < 1) return new MetaNum(1 / Math.abs(n)).rec();
+        return new MetaNum(n);
+      }
+    }
+
+    // General case: result = 10^(log10(x) - log10(y))
+    var logDiff = x.log10().sub(other.log10());
+    // If logDiff is negative (result < 1), compute as reciprocal of positive power
+    if (logDiff.sign === -1) {
+      var posLog = logDiff.abs();
+      var posResult = MetaNum.pow(MetaNum.TEN, posLog);
+      return posResult.rec();
+    }
+    var result = MetaNum.pow(MetaNum.TEN, logDiff);
+    var fp = result.floor();
+    if (result.sub(fp).abs().lt(new MetaNum(1e-9))) return fp;
+    return result;
   };
   Q.divide = Q.div = function (x, y) {
     return new MetaNum(x).div(y);
@@ -808,8 +973,10 @@
     if (this.isNaN()) return MetaNum.NaN.clone();
     if (this.eq(MetaNum.ZERO)) return MetaNum.NaN.clone();
     if (this.isInfinite()) return MetaNum.ZERO.clone();
-    if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return MetaNum.ZERO.clone();
-    return new MetaNum(1 / this.array[0][0]);
+    var x = this.clone();
+    // Toggle between large and small: 1↔2, -1↔-2
+    x.sign = x.sign === 1 ? 2 : x.sign === 2 ? 1 : x.sign === -1 ? -2 : -1;
+    return x.normalize();
   };
   Q.reciprocate = Q.rec = function (x) {
     return new MetaNum(x).rec();
@@ -819,23 +986,45 @@
     var x = this.clone();
     other = new MetaNum(other);
     if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
-    if (x.sign === -1) return this.abs().pow(other).mul(MetaNum.fromNumber(-1).pow(other));
+    if (x.sign === -1 || x.sign === -2) {
+      var absPow = this.abs().pow(other);
+      if (other.isint()) {
+        return other.mod(2).eq(0) ? absPow : absPow.neg();
+      }
+      return MetaNum.NaN.clone();
+    }
     if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
     if (x.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (other.eq(MetaNum.ONE)) return x.clone();
     if (x.isInfinite() || other.isInfinite()) return x;
     if (isSimple(x) && isSimple(other)) {
-      var powVal = Math.pow(x.array[0][0], other.array[0][0]);
-      if (Number.isFinite(powVal) && Math.abs(powVal) <= MAX_SAFE_INTEGER) return new MetaNum(powVal);
+      var powVal = Math.pow(x.toNumber(), other.toNumber());
+      if (Number.isFinite(powVal) && Math.abs(powVal) <= MAX_SAFE_INTEGER && powVal !== 0) return new MetaNum(powVal);
     }
-    if (x.eq(MetaNum.TEN)) {
+    if (x.eq(MetaNum.TEN) && !isSmall(other)) {
       if (other.layer > 0 || other.array.length > 1) return other;
       var newRow0 = other.array[0].slice(0);
       newRow0[1] = (newRow0[1] || 0) + 1;
       return new MetaNum(newRow0);
     }
-    return MetaNum.pow(10, x.log10().mul(other));
+    // For small exponents: 10^small approaches 1 from above
+    if (isSimple(x) && isSimple(other) && isSmall(other)) {
+      var smallPow = Math.pow(x.toNumber(), other.toNumber());
+      if (Number.isFinite(smallPow)) return new MetaNum(smallPow);
+    }
+    // For very small exponents on 10, return approximately 1
+    if (x.eq(MetaNum.TEN) && isSmall(other)) {
+      // 10^(very small) ≈ 1 + small*ln(10), which rounds to 1 for our purposes
+      return MetaNum.ONE.clone();
+    }
+    var logResult = x.log10().mul(other);
+    if (logResult.sign === -1 || logResult.sign === -2) {
+      var posResult = MetaNum.pow(10, logResult.neg());
+      posResult.sign = posResult.sign === 1 ? 2 : posResult.sign === 2 ? 1 : posResult.sign === -1 ? -2 : -1;
+      return posResult.normalize();
+    }
+    return MetaNum.pow(10, logResult);
   };
   Q.toPower = Q.pow = function (x, y) {
     return new MetaNum(x).pow(y);
@@ -843,8 +1032,8 @@
 
   P.exponential = P.exp = function () {
     if (this.isNaN()) return MetaNum.NaN.clone();
-    if (this.sign === -1) return this.abs().exp().rec();
-    if (isSimple(this)) {
+    if (this.sign === -1 || this.sign === -2) return this.abs().exp().rec();
+    if (isSimple(this) && !isSmall(this)) {
       var ev = Math.exp(this.array[0][0]);
       if (Number.isFinite(ev) && Math.abs(ev) <= MAX_SAFE_INTEGER) return new MetaNum(ev);
     }
@@ -855,9 +1044,9 @@
   };
 
   P.squareRoot = P.sqrt = function () {
-    if (this.isNaN() || this.sign === -1) return MetaNum.NaN.clone();
+    if (this.isNaN() || this.sign === -1 || this.sign === -2) return MetaNum.NaN.clone();
     if (this.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
-    if (isSimple(this)) return new MetaNum(Math.sqrt(this.array[0][0]));
+    if (isSimple(this) && !isSmall(this)) return new MetaNum(Math.sqrt(this.array[0][0]));
     return this;
   };
   Q.squareRoot = Q.sqrt = function (x) {
@@ -867,7 +1056,7 @@
   P.cubeRoot = P.cbrt = function () {
     if (this.isNaN()) return MetaNum.NaN.clone();
     if (this.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
-    if (this.sign === -1) return this.abs().cbrt().neg();
+    if (this.sign === -1 || this.sign === -2) return this.abs().cbrt().neg();
     if (isSimple(this)) return new MetaNum(Math.cbrt(this.array[0][0]));
     return this;
   };
@@ -881,7 +1070,10 @@
     if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
     if (x.isInfinite()) return x;
     if (other.eq(MetaNum.ZERO)) return MetaNum.POSITIVE_INFINITY.clone();
-    if (x.sign === -1 && other.mod(2).eq(MetaNum.ONE)) return x.abs().root(other).neg();
+    if (x.sign === -1 || x.sign === -2) {
+      if (other.mod(2).eq(MetaNum.ONE)) return x.abs().root(other).neg();
+      return MetaNum.NaN.clone();
+    }
     if (isSimple(x) && isSimple(other)) return new MetaNum(Math.pow(x.array[0][0], 1 / other.array[0][0]));
     return x;
   };
@@ -890,9 +1082,19 @@
   };
 
   P.generalLogarithm = P.log10 = function () {
-    if (this.isNaN() || this.sign === -1) return MetaNum.NaN.clone();
-    if (this.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
+    if (this.isNaN() || this.sign === -1 || this.sign === -2) return MetaNum.NaN.clone();
     if (this.isInfinite()) return this;
+    if (isSmall(this)) {
+      // Small value: log10 is negative of what it would be for the normal value
+      var n = this.clone();
+      n.sign = 1; // Convert to normal positive for computation
+      var result = n.log10();
+      // Result should be negative (because log10 of a small number is negative)
+      // Need to handle this carefully - after conversion, the result is the magnitude
+      // which we need to negate
+      return result.neg();
+    }
+    if (this.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
     if (isSimple(this)) {
       var lv = Math.log10(this.array[0][0]);
       if (Number.isFinite(lv)) return new MetaNum(lv);
@@ -914,7 +1116,7 @@
 
   P.logarithm = P.logBase = P.log = function (base) {
     var x = this.clone();
-    if (x.isNaN() || x.sign === -1) return MetaNum.NaN.clone();
+    if (x.isNaN() || x.sign === -1 || x.sign === -2) return MetaNum.NaN.clone();
     base = new MetaNum(base);
     if (base.isNaN() || base.eq(MetaNum.ZERO) || base.eq(MetaNum.ONE)) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
@@ -930,7 +1132,7 @@
   };
 
   P.naturalLogarithm = P.ln = function () {
-    if (this.isNaN() || this.sign === -1) return MetaNum.NaN.clone();
+    if (this.isNaN() || this.sign === -1 || this.sign === -2) return MetaNum.NaN.clone();
     if (this.eq(MetaNum.ZERO)) return MetaNum.NEGATIVE_INFINITY.clone();
     if (this.isInfinite()) return this;
     if (isSimple(this)) {
@@ -946,8 +1148,10 @@
   P.modular = P.mod = function (other) {
     other = new MetaNum(other);
     if (other.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
-    if (this.sign * other.sign === -1) return this.abs().mod(other.abs()).neg();
-    if (this.sign === -1) return this.abs().mod(other.abs());
+    var tNS = toNormalizedSign(this.sign);
+    var oNS = toNormalizedSign(other.sign);
+    if (tNS * oNS === -1) return this.abs().mod(other.abs()).neg();
+    if (this.sign === -1 || this.sign === -2) return this.abs().mod(other.abs());
     return this.sub(this.div(other).floor().mul(other));
   };
   Q.modular = Q.mod = function (x, y) {
@@ -955,16 +1159,21 @@
   };
 
   P.gamma = function () {
-    if (this.sign === -1) return MetaNum.NaN.clone();
+    if (this.sign === -1 || this.sign === -2) return MetaNum.NaN.clone();
     if (this.isNaN() || this.isInfinite()) return this.clone();
     if (isSimple(this)) {
-      if (Number.isInteger(this.array[0][0]) && this.array[0][0] >= 0 && this.array[0][0] <= 100) {
+      var n = this.array[0][0];
+      if (Number.isInteger(n) && n >= 0 && n <= 100) {
         var f = 1;
-        for (var i = 2; i < this.array[0][0]; i++) f *= i;
+        for (var i = 2; i < n; i++) f *= i;
         return new MetaNum(f);
       }
-      var g = f_gamma(this.array[0][0]);
+      var g = f_gamma(n);
       if (Number.isFinite(g) && Math.abs(g) <= MAX_SAFE_INTEGER) return new MetaNum(g);
+      var logG = f_logGamma(n);
+      if (Number.isFinite(logG)) {
+        return MetaNum.pow(10, new MetaNum(logG));
+      }
     }
     return this;
   };
@@ -974,15 +1183,20 @@
 
   P.factorial = P.fact = function () {
     if (this.isNaN() || this.isInfinite()) return this;
-    if (this.sign === -1) return this.abs().fact().neg();
+    if (this.sign === -1 || this.sign === -2) return this.abs().fact().neg();
     if (isSimple(this)) {
-      if (Number.isInteger(this.array[0][0]) && this.array[0][0] >= 0 && this.array[0][0] <= 20) {
+      var n = this.array[0][0];
+      if (Number.isInteger(n) && n >= 0 && n <= 20) {
         var f = 1;
-        for (var i = 2; i <= this.array[0][0]; i++) f *= i;
+        for (var i = 2; i <= n; i++) f *= i;
         return new MetaNum(f);
       }
-      var fa = f_gamma(this.array[0][0] + 1);
+      var fa = f_gamma(n + 1);
       if (Number.isFinite(fa) && Math.abs(fa) <= MAX_SAFE_INTEGER) return new MetaNum(fa);
+      var logFa = f_logGamma(n + 1);
+      if (Number.isFinite(logFa)) {
+        return MetaNum.pow(10, new MetaNum(logFa));
+      }
     }
     return this;
   };
@@ -1010,6 +1224,10 @@
 
   P.floor = function () {
     if (this.isNaN() || this.isInfinite()) return this.clone();
+    if (isSmall(this)) {
+      // Small positive → 0, small negative → -1
+      return this.sign === 2 ? MetaNum.ZERO.clone() : MetaNum.NEGATIVE_ONE.clone();
+    }
     if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return this.clone();
     return new MetaNum(Math.floor(this.array[0][0]));
   };
@@ -1019,6 +1237,10 @@
 
   P.ceiling = P.ceil = function () {
     if (this.isNaN() || this.isInfinite()) return this.clone();
+    if (isSmall(this)) {
+      // Small positive → 1, small negative → 0
+      return this.sign === 2 ? MetaNum.ONE.clone() : MetaNum.ZERO.clone();
+    }
     if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return this.clone();
     return new MetaNum(Math.ceil(this.array[0][0]));
   };
@@ -1028,6 +1250,7 @@
 
   P.round = function () {
     if (this.isNaN() || this.isInfinite()) return this.clone();
+    if (isSmall(this)) return MetaNum.ZERO.clone();
     if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return this.clone();
     return new MetaNum(Math.round(this.array[0][0]));
   };
@@ -1037,6 +1260,7 @@
 
   P.isInteger = P.isint = function () {
     if (this.isNaN() || this.isInfinite()) return false;
+    if (isSmall(this)) return false; // Small values are between 0 and 1, not integers
     if (this.sign === -1) return this.abs().isint();
     if (this.layer > 0 || this.array.length > 1 || this.array[0].length > 1) return true;
     return Number.isInteger(this.array[0][0]);
@@ -1052,7 +1276,10 @@
     payload = new MetaNum(payload);
     if (payload.neq(MetaNum.ONE)) other = other.add(payload.slog(x));
     if (x.isNaN() || other.isNaN() || payload.isNaN()) return MetaNum.NaN.clone();
-    if (other.sign === -1) return MetaNum.NaN.clone();
+    if (other.sign === -1 || other.sign === -2) {
+      if (other.eq(-1)) return MetaNum.ZERO.clone();
+      return MetaNum.NaN.clone();
+    }
     if (other.eq(MetaNum.NEGATIVE_INFINITY)) return MetaNum.ZERO.clone();
     if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
     if (other.eq(MetaNum.ONE)) return x.clone();
@@ -1097,7 +1324,7 @@
   P.iteratedexp = function (other) {
     var x = this.clone();
     other = new MetaNum(other);
-    if (other.sign === -1) return MetaNum.ZERO.clone();
+    if (other.sign === -1 || other.sign === -2) return MetaNum.ZERO.clone();
     if (isSimple(x) && isSimple(other) && Number.isInteger(other.array[0][0]) && other.array[0][0] <= 4) {
       var iv = x.array[0][0];
       var ic = other.array[0][0];
@@ -1114,7 +1341,7 @@
   P.iteratedlog = function (other) {
     var x = this.clone();
     other = new MetaNum(other);
-    if (other.sign === -1) return MetaNum.POSITIVE_INFINITY.clone();
+    if (other.sign === -1 || other.sign === -2) return MetaNum.POSITIVE_INFINITY.clone();
     if (other.eq(MetaNum.ZERO)) return x.clone();
     if (isSimple(x) && isSimple(other) && Number.isInteger(other.array[0][0]) && other.array[0][0] <= 4) {
       var iv = x.array[0][0];
@@ -1137,7 +1364,7 @@
     base = new MetaNum(base);
     if (x.isNaN() || other.isNaN() || base.isNaN()) return MetaNum.NaN.clone();
     if (other.eq(MetaNum.ZERO)) return x.clone();
-    if (other.sign === -1) return MetaNum.ZERO.clone();
+    if (other.sign === -1 || other.sign === -2) return MetaNum.ZERO.clone();
     return x.tetr(other).tetr(base).logBase(base);
   };
   Q.layeradd = function (x, y, base) {
@@ -1152,7 +1379,7 @@
   };
 
   P.ssqrt = P.ssrt = function () {
-    if (this.sign === -1) return MetaNum.NaN.clone();
+    if (this.sign === -1 || this.sign === -2) return MetaNum.NaN.clone();
     if (this.isNaN()) return MetaNum.NaN.clone();
     if (this.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
     if (this.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
@@ -1164,7 +1391,9 @@
         if (Number.isFinite(w)) return new MetaNum(Math.exp(w));
       } catch (e) {}
     }
-    return this.log10();
+    var ln = this.ln();
+    var w = ln.lambertw();
+    return w.exp();
   };
   Q.ssqrt = Q.ssrt = function (x) {
     return new MetaNum(x).ssqrt();
@@ -1174,7 +1403,7 @@
     var x = this.clone();
     other = new MetaNum(other);
     if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
-    if (x.sign === -1 || other.sign === -1) return MetaNum.NaN.clone();
+    if (x.sign === -1 || x.sign === -2 || other.sign === -1 || other.sign === -2) return MetaNum.NaN.clone();
     if (other.eq(MetaNum.ZERO)) return MetaNum.ZERO.clone();
     if (other.eq(MetaNum.ONE)) return x.clone();
     if (isSimple(x) && isSimple(other) && other.array[0][0] > 1) {
@@ -1196,7 +1425,7 @@
     var x = this.clone();
     base = new MetaNum(base);
     if (x.isNaN() || base.isNaN()) return MetaNum.NaN.clone();
-    if (x.sign === -1 || base.sign === -1) return MetaNum.NaN.clone();
+    if (x.sign === -1 || x.sign === -2 || base.sign === -1 || base.sign === -2) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ZERO.clone();
     if (x.lt(MetaNum.ONE)) return MetaNum.fromNumber(-1).add(x.slog(base));
     var m = x.max(base);
@@ -1258,16 +1487,122 @@
     return MetaNum.arrow(x, 3, y);
   };
 
+  //pentate_log和pentate_root
+  P.pentate_log = P.pent_log = function (base) {
+    if (base === undefined) base = 10;
+    var x = this.clone();
+    base = new MetaNum(base);
+    if (x.isNaN() || base.isNaN()) return MetaNum.NaN.clone();
+    if (x.sign === -1 || x.sign === -2 || base.sign === -1 || base.sign === -2) return MetaNum.NaN.clone();
+    if (x.eq(MetaNum.ONE)) return MetaNum.ZERO.clone();
+    if (x.eq(base)) return MetaNum.ONE.clone();
+    if (x.lt(base)) return MetaNum.ZERO.clone();
+    var m = x.max(base);
+    if (m.gt(hyperLevel(4, MAX_SAFE_INTEGER))) {
+      if (x.gt(base)) return x.clone();
+      return MetaNum.ZERO.clone();
+    }
+    if (isSimple(x) && isSimple(base) && base.array[0][0] > 1) {
+      var v = x.array[0][0];
+      var b = base.array[0][0];
+      var count = 0;
+      while (v > b && count < 100) {
+        var slogVal = new MetaNum(v).slog(base);
+        if (slogVal.array.length <= 1 && slogVal.array[0].length <= 1) {
+          v = slogVal.array[0][0];
+          count++;
+        } else {
+          return new MetaNum(count).add(slogVal);
+        }
+      }
+      if (count > 0) return new MetaNum(count).add(new MetaNum(v).slog(base));
+    }
+    var r = 0;
+    for (var i = 0; i < 100; i++) {
+      if (x.lte(base)) {
+        if (x.lte(1)) return new MetaNum(r);
+        return new MetaNum(r + x.array[0][0] / base.array[0][0]);
+      } else {
+        r++;
+        x = x.slog(base);
+      }
+    }
+    if (x.gt(10)) return new MetaNum(r);
+    return new MetaNum(r);
+  };
+  Q.pentate_log = Q.pent_log = function (x, base) {
+    return new MetaNum(x).pentate_log(base);
+  };
+
+  P.pentate_root = P.pent_root = function (height) {
+    var x = this.clone();
+    height = new MetaNum(height);
+    if (x.isNaN() || height.isNaN()) return MetaNum.NaN.clone();
+    if (x.sign === -1 || x.sign === -2 || height.sign === -1 || height.sign === -2) return MetaNum.NaN.clone();
+    if (height.eq(MetaNum.ZERO)) {
+      if (x.eq(MetaNum.ONE)) return MetaNum.NaN.clone();
+      return MetaNum.NaN.clone();
+    }
+    if (height.eq(MetaNum.ONE)) return x.clone();
+    if (height.eq(2) && isSimple(x)) {
+      var v2 = x.array[0][0];
+      if (v2 <= 1) return MetaNum.ONE.clone();
+      var lo2 = 1;
+      var hi2 = Math.max(2, v2);
+      for (var i2 = 0; i2 < 50; i2++) {
+        var mid2 = (lo2 + hi2) / 2;
+        var val2 = MetaNum.pentate(mid2, 2);
+        if (val2.eq(x)) return new MetaNum(mid2);
+        if (val2.lt(x)) lo2 = mid2;
+        else hi2 = mid2;
+      }
+      return new MetaNum((lo2 + hi2) / 2);
+    }
+    if (isSimple(x) && isSimple(height)) {
+      var v = x.array[0][0];
+      var h = height.array[0][0];
+      if (h >= 2 && Number.isInteger(h)) {
+        var lo = 1;
+        var hi = Math.max(2, v);
+        for (var i = 0; i < 50; i++) {
+          var mid = (lo + hi) / 2;
+          var val = MetaNum.pentate(mid, h);
+          if (val.eq(x)) return new MetaNum(mid);
+          if (val.lt(x)) lo = mid;
+          else hi = mid;
+        }
+        return new MetaNum((lo + hi) / 2);
+      }
+    }
+    if (isSimple(height) && height.array[0][0] >= 2) {
+      var lo2 = new MetaNum(1);
+      var hi2 = x.clone();
+      for (var i = 0; i < 50; i++) {
+        var mid2 = lo2.add(hi2).div(2);
+        var val2 = MetaNum.pentate(mid2, height);
+        if (val2.eq(x)) return mid2;
+        if (val2.lt(x)) lo2 = mid2;
+        else hi2 = mid2;
+      }
+      return lo2.add(hi2).div(2);
+    }
+    return x;
+  };
+  Q.pentate_root = Q.pent_root = function (x, height) {
+    return new MetaNum(x).pentate_root(height);
+  };
+  
+
   P.arrow = function (arrows) {
     var t = this.clone();
     arrows = new MetaNum(arrows);
-    if (!arrows.isint() || arrows.sign === -1) return function () { return MetaNum.NaN.clone(); };
+    if (!arrows.isint() || arrows.sign === -1 || arrows.sign === -2) return function () { return MetaNum.NaN.clone(); };
     if (arrows.eq(MetaNum.ZERO)) return function (other) { return t.mul(other); };
     if (arrows.eq(MetaNum.ONE)) return function (other) { return t.pow(other); };
     if (arrows.eq(2)) return function (other) { return t.tetr(other); };
     return function (other) {
       other = new MetaNum(other);
-      if (other.sign === -1) return MetaNum.NaN.clone();
+      if (other.sign === -1 || other.sign === -2) return MetaNum.NaN.clone();
       if (other.eq(MetaNum.ZERO)) return MetaNum.ONE.clone();
       if (other.eq(MetaNum.ONE)) return t.clone();
       if (other.eq(2)) return t.arrow(arrows.sub(MetaNum.ONE))(t);
@@ -1275,7 +1610,6 @@
       if (!isFinite(arrowsNum)) {
         // arrows is a huge MetaNum (ω-level): result inherits the largest structure
         var j = t.max(other).max(arrows).clone();
-        j.layer = 1;
         j.array.push([1, 0, 1]);
         j.normalize();
         return j;
@@ -1283,12 +1617,10 @@
       if (arrows.gte(MetaNum.maxArrow)) {
         // arrows is very large but still a JS number; use approximate overflow
         var j = t.max(other).clone();
-        j.layer = 1;
         j.array.push([1, 0, 1]);
         j.normalize();
         return j;
       }
-      if (t.max(other).gt(hyperLevelSafe(arrowsNum + 1, MAX_SAFE_INTEGER))) return t.max(other);
       if (arrowsNum >= MetaNum.maxCols && t.array.length === 1 && other.array.length === 1) {
         var a = t.array[0][0];
         var b = other.array[0][0];
@@ -1311,12 +1643,12 @@
           var startLevel = MetaNum.maxCols;
           var totalOrdinal = endLevel - startLevel + 1;
           if (totalOrdinal + 1 <= MetaNum.maxRows) {
-            r = t.arrow(MetaNum.maxCols - 1)(other);
+            var r = t.arrow(MetaNum.maxCols - 1)(other);
             for (var lev = startLevel; lev <= endLevel; lev++) {
               r = addOrdinalRow(r, count, lev);
             }
           } else {
-            r = new MetaNum(a);
+            var r = new MetaNum(10);
             var keepStart = endLevel - MetaNum.maxRows + 2;
             for (var lev = keepStart; lev <= endLevel; lev++) {
               r = addOrdinalRow(r, count, lev);
@@ -1326,6 +1658,13 @@
           return r;
         }
       }
+      if (arrowsNum > 1000000) {
+        var j = t.max(other).clone();
+        j.array.push([1, 0, 1]);
+        j.normalize();
+        return j;
+      }
+      if (t.max(other).gt(hyperLevelSafe(arrowsNum + 1, MAX_SAFE_INTEGER))) return t.max(other);
       if (t.gt(hyperLevelSafe(arrowsNum, MAX_SAFE_INTEGER)) || other.gt(MetaNum.MAX_SAFE_INTEGER)) {
         var r;
         if (t.gt(hyperLevelSafe(arrowsNum, MAX_SAFE_INTEGER))) {
@@ -1393,14 +1732,16 @@
   Q.chain = function (x, y, arrows) {
     return new MetaNum(x).arrow(arrows)(y);
   };
-  P.aperiote = P.aper = function (y) {
+
+  //calc level ω = x{y}x
+  P.aperiote = P.aper = P.h10 = function (y) {
     return this.arrow(y)(this);
   };
-  Q.aperiote = Q.aper = function (x, y) {
+  Q.aperiote = Q.aper = Q.h10 = function (x, y) {
     return new MetaNum(x).arrow(y)(x);
   };
 
-  P.inv_aperiote = P.i_aper = function (z) {
+  P.inv_aperiote = P.i_aper = P.i10 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1433,31 +1774,27 @@
     }
     return z;
   };
-  Q.inv_aperiote = Q.i_aper = function (x, z) {
+  Q.inv_aperiote = Q.i_aper = Q.i10 = function (x, z) {
     return new MetaNum(x).inv_aperiote(z);
   };
 
-  P.expande = P.expa = function (y) {
+  //ω+1 x{{1}}y
+  P.expande = P.expa = P.h11 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
-    var base = x.aperiote(x);  // expande(x, 2)
-    if (y.layer === 0) {
-      // finite y: r0 from base, Cantor expansion
+    var base = x.aperiote(x);  // expande(x, 2) = x{x}x
+    if (y.layer === 0 && y.array.length <= 1) {
+      // finite y: r0 from base, [y-2, 0, 1] for ω+1 level
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
       if (count > 0) {
         result.layer = 0;
         result.array = [base.array[0].slice()];
-        var cl = MetaNum.getCantorLevel(0);
-        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
-        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
-        for (var i = 0; i < ordRows.length; i++) {
-          result.array.push(ordRows[i]);
-        }
+        result.array.push([count, 0, 1]);
         result.normalize();
       }
       return result;
@@ -1470,11 +1807,11 @@
     result.normalize();
     return result;
   };
-  Q.expande = Q.expa = function (x, y) {
+  Q.expande = Q.expa = Q.h11 = function (x, y) {
     return new MetaNum(x).expande(y);
   };
 
-  P.inv_expande = P.i_expa = function (z) {
+  P.inv_expande = P.i_expa = P.i11 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1512,30 +1849,27 @@
     }
     return z;
   };
-  Q.inv_expande = Q.i_expa = function (x, z) {
+  Q.inv_expande = Q.i_expa = Q.i11 = function (x, z) {
     return new MetaNum(x).inv_expande(z);
   };
 
-  P.multiexpande = P.muea = function (y) {
+  //ω+2 x{{2}}y
+  P.multiexpande = P.muea = P.h12 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.expande(x);  // multiexpande(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
       if (count > 0) {
         result.layer = 0;
         result.array = [base.array[0].slice()];
-        var cl = MetaNum.getCantorLevel(1);
-        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
-        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
-        for (var i = 0; i < ordRows.length; i++) {
-          result.array.push(ordRows[i]);
-        }
+        result.array.push([1, 0, 1]);
+        result.array.push([count, 1, 1]);
         result.normalize();
       }
       return result;
@@ -1547,11 +1881,11 @@
     result.normalize();
     return result;
   };
-  Q.multiexpande = Q.muea = function (x, y) {
+  Q.multiexpande = Q.muea = Q.h12 = function (x, y) {
     return new MetaNum(x).multiexpande(y);
   };
 
-  P.inv_multiexpande = P.i_muea = function (z) {
+  P.inv_multiexpande = P.i_muea = P.i12 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1580,30 +1914,28 @@
     }
     return z;
   };
-  Q.inv_multiexpande = Q.i_muea = function (x, z) {
+  Q.inv_multiexpande = Q.i_muea = Q.i12 = function (x, z) {
     return new MetaNum(x).inv_multiexpande(z);
   };
 
-  P.powerexpande = P.poea = function (y) {
+  //ω+3 x{{3}}y
+  P.powerexpande = P.poea = P.h13 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.multiexpande(x);  // powerexpande(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
       if (count > 0) {
         result.layer = 0;
         result.array = [base.array[0].slice()];
-        var cl = MetaNum.getCantorLevel(2);
-        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
-        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
-        for (var i = 0; i < ordRows.length; i++) {
-          result.array.push(ordRows[i]);
-        }
+        result.array.push([1, 0, 1]);
+        result.array.push([1, 1, 1]);
+        result.array.push([count, 2, 1]);
         result.normalize();
       }
       return result;
@@ -1615,11 +1947,11 @@
     result.normalize();
     return result;
   };
-  Q.powerexpande = Q.poea = function (x, y) {
+  Q.powerexpande = Q.poea = Q.h13 = function (x, y) {
     return new MetaNum(x).powerexpande(y);
   };
 
-  P.inv_powerexpande = P.i_poea = function (z) {
+  P.inv_powerexpande = P.i_poea = P.i13 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1648,46 +1980,69 @@
     }
     return z;
   };
-  Q.inv_powerexpande = Q.i_poea = function (x, z) {
+  Q.inv_powerexpande = Q.i_poea = Q.i13 = function (x, z) {
     return new MetaNum(x).inv_powerexpande(z);
   };
 
-  P.aperioexpansion = P.apea = function (y) {
+  //ω*2 x{{y}}x
+  P.aperioexpande = P.apea = P.h20 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.expande(x);
     if (y.eq(2)) return x.multiexpande(x);
     if (y.eq(3)) return x.powerexpande(x);
-    var base = x.powerexpande(x);  // aperioexpansion(x, 3)
-    if (y.layer === 0) {
-      var result = base.clone();
-      var count = y.toNumber() - 3;
-      if (count > 0) {
+    var base = x.powerexpande(x);  // aperioexpande(x, 3)
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yNum = y.toNumber();
+      if (yNum > Number.MAX_SAFE_INTEGER || !isFinite(yNum)) {
+        // Very large y: result at ω*2 level
+        // y is already in magnitude form (e.g., [[16,1]] for 1e16), just add ω*2 marker
+        var result = y.clone();
         result.layer = 0;
-        result.array = [base.array[0].slice()];
-        var cl = MetaNum.getCantorLevel(3);
-        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
-        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
-        for (var i = 0; i < ordRows.length; i++) {
-          result.array.push(ordRows[i]);
-        }
+        result.array.push([1, 0, 2]);
         result.normalize();
+        return result;
       }
+      // Finite y: generate rows [1, i, 1] for i from 0 to yNum-1
+      var totalRows = yNum - 1;
+      var maxRows = MetaNum.maxRows - 1;
+      var result = base.clone();
+      if (yNum <= 2) return result;
+      result.layer = 0;
+      if (totalRows <= maxRows) {
+        // No truncation needed
+        result.array = [base.array[0].slice()];
+        for (var i = 0; i < totalRows; i++) {
+          result.array.push([1, i, 1]);
+        }
+      } else {
+        // Truncate: keep last maxRows rows
+        result.array = [[10]];
+        var keepStart = yNum - maxRows;
+        for (var i = keepStart; i < yNum; i++) {
+          result.array.push([1, i, 1]);
+        }
+      }
+      result.normalize();
       return result;
     }
+    // ordinal y: expand based on y's structure
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 4, 1]);
+    // For ordinal y, add the ω*2 marker
+    // h20 is the diagonalization: y levels of ω*2 operations
+    // The result keeps y's ordinal structure and adds [1, 0, 2] as the ω*2 marker
+    result.array.push([1, 0, 2]);
     result.normalize();
     return result;
   };
-  Q.aperioexpansion = Q.apea = function (x, y) {
-    return new MetaNum(x).aperioexpansion(y);
+  Q.aperioexpande = Q.apea = Q.h20 = function (x, y) {
+    return new MetaNum(x).aperioexpande(y);
   };
 
-  P.inv_aperioexpansion = P.i_apea = function (z) {
+  P.inv_aperioexpande = P.i_apea = P.i20 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1695,7 +2050,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 4 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 3 && row[1] === 0 && row[2] === 2 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -1716,18 +2071,19 @@
     }
     return z;
   };
-  Q.inv_aperioexpande = Q.i_apea = function (x, z) {
-    return new MetaNum(x).inv_aperioexpansion(z);
+  Q.inv_aperioexpande = Q.i_apea = Q.i20 = function (x, z) {
+    return new MetaNum(x).inv_aperioexpande(z);
   };
-
-  P.explode = P.expl = function (y) {
+  
+  //ω*2+1 x{{{1}}}y
+  P.explode = P.expl = P.h21 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
-    var base = x.aperioexpansion(x);  // explode(x, 2)
-    if (y.layer === 0) {
+    var base = x.aperioexpande(x);  // explode(x, 2)
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
@@ -1747,15 +2103,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 4, 1]);
+    result.array.push([1, 1, 2]);
     result.normalize();
     return result;
   };
-  Q.explode = Q.expl = function (x, y) {
+  Q.explode = Q.expl = Q.h21 = function (x, y) {
     return new MetaNum(x).explode(y);
   };
 
-  P.inv_explode = P.i_expl = function (z) {
+  P.inv_explode = P.i_expl = P.i21 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1763,7 +2119,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 4 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 3 && row[1] === 1 && row[2] === 2 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -1784,18 +2140,19 @@
     }
     return z;
   };
-  Q.inv_explode = Q.i_expl = function (x, z) {
+  Q.inv_explode = Q.i_expl = Q.i21 = function (x, z) {
     return new MetaNum(x).inv_explode(z);
   };
 
-  P.multiexplode = P.muel = function (y) {
+  //ω*2+2 x{{{2}}}y
+  P.multiexplode = P.muel = P.h22 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.explode(x);  // multiexplode(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
@@ -1815,15 +2172,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 5, 1]);
+    result.array.push([1, 2, 2]);
     result.normalize();
     return result;
   };
-  Q.multiexplode = Q.muel = function (x, y) {
+  Q.multiexplode = Q.muel = Q.h22 = function (x, y) {
     return new MetaNum(x).multiexplode(y);
   };
 
-  P.inv_multiexplode = P.i_muel = function (z) {
+  P.inv_multiexplode = P.i_muel = P.i22 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1831,7 +2188,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 5 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 3 && row[1] === 2 && row[2] === 2 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -1852,18 +2209,19 @@
     }
     return z;
   };
-  Q.inv_multiexplode = Q.i_muel = function (x, z) {
+  Q.inv_multiexplode = Q.i_muel = Q.i22 = function (x, z) {
     return new MetaNum(x).inv_multiexplode(z);
   };
-
-  P.aperioexplode = P.apel = function (y) {
+  
+  //ω*3 x{{{y}}}x
+  P.aperioexplode = P.apel = P.h30 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.explode(x);
     if (y.eq(2)) return x.multiexplode(x);
     var base = x.multiexplode(x);  // aperioexplode(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       var count = y.toNumber() - 2;
       if (count > 0) {
@@ -1882,15 +2240,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 6, 1]);
+    result.array.push([1, 0, 3]);
     result.normalize();
     return result;
   };
-  Q.aperioexplode = Q.apel = function (x, y) {
+  Q.aperioexplode = Q.apel = Q.h30 = function (x, y) {
     return new MetaNum(x).aperioexplode(y);
   };
 
-  P.inv_aperioexplode = P.i_apel = function (z) {
+  P.inv_aperioexplode = P.i_apel = P.i30 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1898,7 +2256,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 6 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 3 && row[1] === 0 && row[2] === 3 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -1919,18 +2277,19 @@
     }
     return z;
   };
-  Q.inv_aperioexplode = Q.i_apel = function (x, z) {
+  Q.inv_aperioexplode = Q.i_apel = Q.i30 = function (x, z) {
     return new MetaNum(x).inv_aperioexplode(z);
   };
-
-  P.detonate = P.deto = function (y) {
+  
+  //ω*3+1 x{{{{1}}}}y
+  P.detonate = P.deto = P.h31 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.aperioexplode(x);  // detonate(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
@@ -1950,15 +2309,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 6, 1]);
+    result.array.push([1, 1, 3]);
     result.normalize();
     return result;
   };
-  Q.detonate = Q.deto = function (x, y) {
+  Q.detonate = Q.deto = Q.h31 = function (x, y) {
     return new MetaNum(x).detonate(y);
   };
 
-  P.inv_detonate = P.i_deto = function (z) {
+  P.inv_detonate = P.i_deto = P.i31 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -1966,7 +2325,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 6 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 3 && row[1] === 1 && row[2] === 3 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -1987,21 +2346,20 @@
     }
     return z;
   };
-  Q.inv_detonate = Q.i_deto = function (x, z) {
+  Q.inv_detonate = Q.i_deto = Q.i31 = function (x, z) {
     return new MetaNum(x).inv_detonate(z);
   };
-
-  P.aperionate = P.apeo = function (y) {
+  
+  //ω*4 x{{{{y}}}}x
+  P.aperiodetonate = P.apdt = P.h40 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
-    if (y.eq(MetaNum.ONE)) return x.aperiote(x);
-    if (y.eq(2)) return x.aperioexpansion(x);
-    if (y.eq(3)) return x.aperioexplode(x);
-    var base = x.aperioexplode(x);  // aperionate(x, 3)
-    if (y.layer === 0) {
+    if (y.eq(MetaNum.ONE)) return x.detonate(x);
+    var base = x.detonate(x);  // aperiodetonate(x, 1)
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
-      var count = y.toNumber() - 3;
+      var count = y.toNumber() - 1;
       if (count > 0) {
         result.layer = 0;
         result.array = [base.array[0].slice()];
@@ -2018,15 +2376,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 7, 1]);
+    result.array.push([1, 0, 4]);
     result.normalize();
     return result;
   };
-  Q.aperionate = Q.apeo = function (x, y) {
-    return new MetaNum(x).aperionate(y);
+  Q.aperiodetonate = Q.apdt = Q.h40 = function (x, y) {
+    return new MetaNum(x).aperiodetonate(y);
   };
 
-  P.inv_aperionate = P.i_apeo = function (z) {
+  P.inv_aperiodetonate = P.i_apdt = P.i40 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2034,7 +2392,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 7 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 3 && row[1] === 0 && row[2] === 4 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -2055,19 +2413,88 @@
     }
     return z;
   };
-  Q.inv_aperionate = Q.i_apeo = function (x, z) {
+  Q.inv_aperiodetonate = Q.i_apdt = Q.i40 = function (x, z) {
+    return new MetaNum(x).inv_aperiodetonate(z);
+  };
+
+  //ω^2 (diagonalization at ω*y level)
+  P.aperionate = P.apeo = P.h100 =function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.aperiote(x);
+    if (y.eq(2)) return x.aperioexpande(x);
+    if (y.eq(3)) return x.aperioexplode(x);
+    var base = x.aperioexplode(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      var count = y.toNumber() - 3;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(6);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 0, 0, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.aperionate = Q.apeo = Q.h100 = function (x, y) {
+    return new MetaNum(x).aperionate(y);
+  };
+
+  P.inv_aperionate = P.i_apeo = P.i100 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 4 && row[1] === 0 && row[2] === 0 && row[3] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 6 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperionate = Q.i_apeo = Q.i100 = function (x, z) {
     return new MetaNum(x).inv_aperionate(z);
   };
 
-  // megote (ω^2+1): iterates aperionate
-  P.megote = P.mego = function (y) {
+  //ω^2+1 (iterated aperionate)
+  P.megote = P.mego = P.h101 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.aperionate(x);  // megote(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
@@ -2087,15 +2514,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 8, 1]);
+    result.array.push([1, 1, 0, 1]);
     result.normalize();
     return result;
   };
-  Q.megote = Q.mego = function (x, y) {
+  Q.megote = Q.mego = Q.h101 = function (x, y) {
     return new MetaNum(x).megote(y);
   };
 
-  P.inv_megote = P.i_mego = function (z) {
+  P.inv_megote = P.i_mego = P.i101 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2103,7 +2530,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 8 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 4 && row[1] === 1 && row[2] === 0 && row[3] === 1 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -2124,18 +2551,87 @@
     }
     return z;
   };
-  Q.inv_megote = Q.i_mego = function (x, z) {
+  Q.inv_megote = Q.i_mego = Q.i101 = function (x, z) {
     return new MetaNum(x).inv_megote(z);
   };
 
-  // aperimegote (ω^2+ω): diagonalization at ω^2 level
-  P.aperimegote = P.apmg = function (y) {
+  //ω^2+2 (iterates megote)
+  P.multimegote = P.mume = P.h102 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.megote(x);  // multimegote(x, 2)
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(8);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 2, 0, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.multimegote = Q.mume = Q.h102 = function (x, y) {
+    return new MetaNum(x).multimegote(y);
+  };
+
+  P.inv_multimegote = P.i_mume = P.i102 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 4 && row[1] === 2 && row[2] === 0 && row[3] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 8 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_multimegote = Q.i_mume = Q.i102 = function (x, z) {
+    return new MetaNum(x).inv_multimegote(z);
+  };
+
+  // ω^2+ω (diagonalization at ω^2+y level)
+  P.aperimegote = P.apmg = P.h110 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.megote(x);
     var base = x.megote(x);  // aperimegote(x, 1)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       var count = y.toNumber() - 1;
       if (count > 0) {
@@ -2154,15 +2650,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 9, 1]);
+    result.array.push([1, 0, 1, 1]);
     result.normalize();
     return result;
   };
-  Q.aperimegote = Q.apmg = function (x, y) {
+  Q.aperimegote = Q.apmg = Q.h110 = function (x, y) {
     return new MetaNum(x).aperimegote(y);
   };
 
-  P.inv_aperimegote = P.i_apmg = function (z) {
+  P.inv_aperimegote = P.i_apmg = P.i110 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2170,7 +2666,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 4 && row[1] === 0 && row[2] === 1 && row[3] === 1 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -2191,19 +2687,19 @@
     }
     return z;
   };
-  Q.inv_aperimegote = Q.i_apmg = function (x, z) {
+  Q.inv_aperimegote = Q.i_apmg = Q.i110 = function (x, z) {
     return new MetaNum(x).inv_aperimegote(z);
   };
 
   // megoexpande (ω^2+ω+1): iterates aperimegote
-  P.megoexpande = P.mgea = function (y) {
+  P.megoexpande = P.mgea = P.h111 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.aperimegote(x);  // megoexpande(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
@@ -2223,15 +2719,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 9, 1]);
+    result.array.push([1, 1, 1, 1]);
     result.normalize();
     return result;
   };
-  Q.megoexpande = Q.mgea = function (x, y) {
+  Q.megoexpande = Q.mgea = Q.h111 = function (x, y) {
     return new MetaNum(x).megoexpande(y);
   };
 
-  P.inv_megoexpande = P.i_mgea = function (z) {
+  P.inv_megoexpande = P.i_mgea = P.i111 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2239,7 +2735,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 4 && row[1] === 1 && row[2] === 1 && row[3] === 1 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -2260,12 +2756,80 @@
     }
     return z;
   };
-  Q.inv_megoexpande = Q.i_mgea = function (x, z) {
+  Q.inv_megoexpande = Q.i_mgea = Q.i111 = function (x, z) {
     return new MetaNum(x).inv_megoexpande(z);
   };
 
-  // megoaperionation (ω^2*2): diagonalization at ω^2+ω level
-  P.megoaperionation = P.mgao = function (y) {
+  //aperimegoexpande (ω^2+ω*2): diagonalize at ω^2+ω+y level
+  P.aperimegoexpande = P.apme = P.h120 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.megoexpande(x);
+    var base = x.megoexpande(x);  // aperimegoexpande(x, 1)
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      var count = y.toNumber() - 1;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(9);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 0, 2, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.aperimegoexpande = Q.apme = Q.h120 = function (x, y) {
+    return new MetaNum(x).aperimegoexpande(y);
+  };
+
+  P.inv_aperimegoexpande = P.i_apme = P.i120 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 4 && row[1] === 0 && row[2] === 2 && row[3] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperimegoexpande = Q.i_apme = Q.i120 = function (x, z) {
+    return new MetaNum(x).inv_aperimegoexpande(z);
+  };
+
+
+  // megoaperionation (ω^2*2): diagonalization at ω^2+ω*y level
+  P.megoaperionation = P.mgao = P.h200 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
@@ -2273,7 +2837,7 @@
     if (y.eq(2)) return x.aperimegote(x);
     if (y.eq(3)) return x.megoexpande(x);
     var base = x.megoexpande(x);  // megoaperionation(x, 3)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       var count = y.toNumber() - 3;
       if (count > 0) {
@@ -2292,15 +2856,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 10, 1]);
+    result.array.push([1, 0, 0, 2]);
     result.normalize();
     return result;
   };
-  Q.megoaperionation = Q.mgao = function (x, y) {
+  Q.megoaperionation = Q.mgao = Q.h200 = function (x, y) {
     return new MetaNum(x).megoaperionation(y);
   };
 
-  P.inv_megoaperionation = P.i_mgao = function (z) {
+  P.inv_megoaperionation = P.i_mgao = P.i200 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2308,7 +2872,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 4 && row[1] === 0 && row[2] === 0 && row[3] === 2 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -2329,19 +2893,19 @@
     }
     return z;
   };
-  Q.inv_megoaperionation = Q.i_mgao = function (x, z) {
+  Q.inv_megoaperionation = Q.i_mgao = Q.i200 = function (x, z) {
     return new MetaNum(x).inv_megoaperionation(z);
   };
 
   // gigote (ω^2*2+1): iterates megoaperionation
-  P.gigote = P.gigo = function (y) {
+  P.gigote = P.gigo = P.h201 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.megoaperionation(x);  // gigote(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
@@ -2361,15 +2925,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 10, 1]);
+    result.array.push([1, 1, 0, 2]);
     result.normalize();
     return result;
   };
-  Q.gigote = Q.gigo = function (x, y) {
+  Q.gigote = Q.gigo = Q.h201 = function (x, y) {
     return new MetaNum(x).gigote(y);
   };
 
-  P.inv_gigote = P.i_gigo = function (z) {
+  P.inv_gigote = P.i_gigo = P.i201 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2377,7 +2941,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 4 && row[1] === 1 && row[2] === 0 && row[3] === 2 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -2398,19 +2962,155 @@
     }
     return z;
   };
-  Q.inv_gigote = Q.i_gigo = function (x, z) {
+  Q.inv_gigote = Q.i_gigo = Q.i201 = function (x, z) {
     return new MetaNum(x).inv_gigote(z);
   };
 
+  //aperigigote (ω^2*2+ω): diag at ω^2*2+y level
+  P.aperigigote = P.apgg = P.h210 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.gigote(x);
+    var base = x.gigote(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      var count = y.toNumber() - 1;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(9);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 0, 1, 2]);
+    result.normalize();
+    return result;
+  };
+  Q.aperigigote = Q.apgg = Q.h210 = function (x, y) {
+    return new MetaNum(x).aperigigote(y);
+  };
+
+  P.inv_aperigigote = P.i_apgg = P.i210 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 4 && row[1] === 0 && row[2] === 1 && row[3] === 2 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperigigote = Q.i_apgg = Q.i210 = function (x, z) {
+    return new MetaNum(x).inv_aperigigote(z);
+  };
+
+  //gigoaperionate (ω^2*3): diag at ω^2*2+ω*y level
+  P.gigoaperionate = P.ggap = P.h300 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.aperigigote(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(9);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 0, 0, 3]);
+    result.normalize();
+    return result;
+  };
+  Q.gigoaperionate = Q.ggap = Q.h300 = function (x, y) {
+    return new MetaNum(x).gigoaperionate(y);
+  };
+
+  P.inv_gigoaperionate = P.i_ggap = P.i300 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 4 && row[1] === 0 && row[2] === 0 && row[3] === 3 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 9 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_gigoaperionate = Q.i_ggap = Q.i300 = function (x, z) {
+    return new MetaNum(x).inv_gigoaperionate(z);
+  };
+
   // aperiatotion (ω^3): diagonalization of ω^2*y
-  P.aperiatotion = P.apat = function (y) {
+  P.aperiatotion = P.apat = P.h1000 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.aperionate(x);
     if (y.eq(2)) return x.megoaperionation(x);
     var base = x.megoaperionation(x);  // aperiatotion(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       var count = y.toNumber() - 2;
       if (count > 0) {
@@ -2429,15 +3129,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 11, 1]);
+    result.array.push([1, 0, 0, 0, 1]);
     result.normalize();
     return result;
   };
-  Q.aperiatotion = Q.apat = function (x, y) {
+  Q.aperiatotion = Q.apat = Q.h1000 = function (x, y) {
     return new MetaNum(x).aperiatotion(y);
   };
 
-  P.inv_aperiatotion = P.i_apat = function (z) {
+  P.inv_aperiatotion = P.i_apat = P.i1000 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2445,7 +3145,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 11 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 5 && row[1] === 0 && row[2] === 0 && row[3] === 0 && row[4] === 1 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -2466,19 +3166,19 @@
     }
     return z;
   };
-  Q.inv_aperiatotion = Q.i_apat = function (x, z) {
+  Q.inv_aperiatotion = Q.i_apat = Q.i1000 = function (x, z) {
     return new MetaNum(x).inv_aperiatotion(z);
   };
 
   // powiainate (ω^3+1): iterates aperiatotion
-  P.powiainate = P.pwan = function (y) {
+  P.powiainate = P.pwan = P.h1001 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.aperiatotion(x);  // powiainate(x, 2)
-    if (y.layer === 0) {
+    if (y.layer === 0 && y.array.length <= 1) {
       var result = base.clone();
       if (y.eq(2)) return result;
       var count = y.toNumber() - 2;
@@ -2498,15 +3198,15 @@
     var result = y.clone();
     result.array[0] = base.array[0].slice();
     result.layer = 0;
-    result.array.push([1, 11, 1]);
+    result.array.push([1, 1, 0, 0, 1]);
     result.normalize();
     return result;
   };
-  Q.powiainate = Q.pwan = function (x, y) {
+  Q.powiainate = Q.pwan = Q.h1001 = function (x, y) {
     return new MetaNum(x).powiainate(y);
   };
 
-  P.inv_powiainate = P.i_pwan = function (z) {
+  P.inv_powiainate = P.i_pwan = P.i1001 = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2514,7 +3214,7 @@
       var result = z.clone();
       for (var i = result.array.length - 1; i >= 1; i--) {
         var row = result.array[i];
-        if (row.length >= 3 && row[1] === 11 && row[2] === 1 && row[0] === 1) {
+        if (row.length >= 5 && row[1] === 1 && row[2] === 0 && row[3] === 0 && row[4] === 1 && row[0] === 1) {
           result.array.splice(i, 1);
           result.normalize();
           if (result.array.length <= 1) result.layer = 0;
@@ -2535,13 +3235,286 @@
     }
     return z;
   };
-  Q.inv_powiainate = Q.i_pwan = function (x, z) {
+  Q.inv_powiainate = Q.i_pwan = Q.i1001 = function (x, z) {
     return new MetaNum(x).inv_powiainate(z);
+  };
+
+  //expandainate (ω^3+ω): diagonalization at ω^3+y level
+  P.expandainate = P.epan = P.h1010 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.powiainate(x);
+    var base = x.powiainate(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      var count = y.toNumber() - 1;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(10);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 0, 1, 0, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.expandainate = Q.epan = Q.h1010 = function (x, y) {
+    return new MetaNum(x).expandainate(y);
+  };
+
+  P.inv_expandainate = P.i_epan = P.i1010 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 5 && row[1] === 0 && row[2] === 1 && row[3] === 0 && row[4] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_expandainate = Q.i_epan = Q.i1010 = function (x, z) {
+    return new MetaNum(x).inv_expandainate(z);
+  };
+
+  //megodainate (ω^3+ω^2): diagonalization at ω^3+ω*y level
+  P.megodainate = P.mgan = P.h1100 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.expandainate(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(10);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 0, 0, 1, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.megodainate = Q.mgan = Q.h1100 = function (x, y) {
+    return new MetaNum(x).megodainate(y);
+  };
+
+  P.inv_megodainate = P.i_mgan = P.i1100 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 5 && row[1] === 0 && row[2] === 0 && row[3] === 1 && row[4] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_megodainate = Q.i_mgan = Q.i1100 = function (x, z) {
+    return new MetaNum(x).inv_megodainate(z);
+  };
+
+  //powiairate (ω^3*2): diagonalization at ω^3+ω^2*y level
+  P.powiairate = P.pwar = P.h2000 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.megodainate(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      if (y.eq(2)) return result;
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(10);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 0, 0, 0, 2]);
+    result.normalize();
+    return result;
+  };
+  Q.powiairate = Q.pwar = Q.h2000 = function (x, y) {
+    return new MetaNum(x).powiairate(y);
+  };
+
+  P.inv_powiairate = P.i_pwar = P.i2000 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 5 && row[1] === 0 && row[2] === 0 && row[3] === 0 && row[4] === 2 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 10 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_powiairate = Q.i_pwar = Q.i2000 = function (x, z) {
+    return new MetaNum(x).inv_powiairate(z);
+  };
+
+  //aperioguate (ω^4): diagonalization at ω^3*y level
+  P.aperioguate = P.apgu = P.h10000 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.aperiatotion(x);
+    if (y.eq(2)) return x.powiairate(x);
+    var base = x.powiairate(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var result = base.clone();
+      var count = y.toNumber() - 2;
+      if (count > 0) {
+        result.layer = 0;
+        result.array = [base.array[0].slice()];
+        var cl = MetaNum.getCantorLevel(11);
+        var maxVal = (cl >= 2) ? (y.toNumber() - 1) : count;
+        var ordRows = MetaNum.expandOrdinals(cl, maxVal);
+        for (var i = 0; i < ordRows.length; i++) {
+          result.array.push(ordRows[i]);
+        }
+        result.normalize();
+      }
+      return result;
+    }
+    var result = y.clone();
+    result.array[0] = base.array[0].slice();
+    result.layer = 0;
+    result.array.push([1, 0, 0, 0, 0, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.aperioguate = Q.apgu = Q.h10000 = function (x, y) {
+    return new MetaNum(x).aperioguate(y);
+  };
+
+  P.inv_aperioguate = P.i_apgu = P.i10000 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 6 && row[1] === 0 && row[2] === 0 && row[3] === 0 && row[4] === 0 && row[5] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 11 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperioguate = Q.i_apgu = Q.i10000 = function (x, z) {
+    return new MetaNum(x).inv_aperioguate(z);
   };
 
   // iter (ω^ω): diagonalizes ω^x operations
   // k <= maxCols-2: layer 0, multi-index; k >= maxCols-1: layer 1
-  P.iter = P.ite = function (y) {
+  P.iter = P.hww = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
@@ -2565,7 +3538,6 @@
       } else {
         // y >= maxLevel: promote to layer 1, compact format
         var result = x.clone();
-        result.layer = 1;
         result.array.push([1, yn, 1]);
         result.normalize();
         return result;
@@ -2593,11 +3565,11 @@
     result.normalize();
     return result;
   };
-  Q.iter = Q.ite = function (x, y) {
+  Q.iter = Q.hww = function (x, y) {
     return new MetaNum(x).iter(y);
   };
 
-  P.inv_iter = P.i_ite = function (z) {
+  P.inv_iter = P.iww = function (z) {
     var x = this.clone();
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
@@ -2618,17 +3590,26 @@
     }
     return z;
   };
-  Q.inv_iter = Q.i_ite = function (x, z) {
+  Q.inv_iter = Q.iww = function (x, z) {
     return new MetaNum(x).inv_iter(z);
   };
-  
+
+  /* hyper operations up to epsilon 0
+  1. itermult (ω^ω+1) = hw01
+  2. cuboiter (ω^ω*2) = hwx2
+  3. expoiter (ω^(ω+1)) = hwa1
+  4. trioterate (ω^(ω*2)) = hwm2
+  5. trixxate (ω^(ω^2)) = hwp2
+  6. aperixxate (ω^(ω^ω)) = hwpw
+  7. epsilonate (ω↑↑ω) = epsl
+  */
 
 
   P.choose = function (other) {
     var x = this.clone();
     other = new MetaNum(other);
     if (x.isNaN() || other.isNaN()) return MetaNum.NaN.clone();
-    if (x.sign === -1 || other.sign === -1) return MetaNum.ZERO.clone();
+    if (x.sign === -1 || x.sign === -2 || other.sign === -1 || other.sign === -2) return MetaNum.ZERO.clone();
     if (other.eq(MetaNum.ZERO) || x.eq(other)) return MetaNum.ONE.clone();
     if (x.lt(other)) return MetaNum.ZERO.clone();
     if (isSimple(x) && isSimple(other) && Number.isInteger(x.array[0][0]) && Number.isInteger(other.array[0][0]) &&
@@ -2648,8 +3629,20 @@
 
   P.toNumber = function () {
     if (this.sign === -1) return -this.abs().toNumber();
+    if (this.sign === -2) return -this.abs().toNumber();
     if (this.isNaN()) return NaN;
     if (this.isInfinite()) return Infinity;
+    if (isSmall(this)) {
+      // Small value: very close to 0
+      if (this.layer > 0) return 0;
+      if (this.array.length > 1) return 0;
+      var r0 = this.array[0];
+      if (r0.length === 1) {
+        // Simple small value: 1/r0[0]
+        return 1 / r0[0];
+      }
+      return 0;
+    }
     if (this.layer > 0) return Infinity;
     if (this.array.length > 1) return Infinity;
     var r0 = this.array[0];
@@ -2685,12 +3678,74 @@
       var sep = hasPower ? " " : "";
       return parts.join(sep) + (hasPower ? " " : "");
     }
+    // Helper: format a MetaNum as scientific notation (AeB)
+    function formatExponent(num) {
+      if (isSimple(num)) {
+        var val = num.toNumber();
+        if (isFinite(val) && val !== 0) {
+          return val.toExponential(6).replace(/\+/g, '');
+        }
+      }
+      if (num.layer === 0 && num.array.length === 1) {
+        var r0 = num.array[0];
+        if (r0.length === 2) {
+          // E notation: array is [mantissa, 1], value = 10^mantissa
+          var m = r0[0];
+          if (Number.isInteger(m)) {
+            return "1E" + m;
+          }
+          var mant = Math.pow(10, m % 1);
+          var exp = Math.floor(m);
+          return mant.toPrecision(6).replace(/0+$/, '').replace(/\.$/, '') + "E" + exp;
+        }
+      }
+      // Fallback: use native toString
+      return num.toString();
+    }
     if (this.isNaN()) return "NaN";
-    if (this.isInfinite()) return this.sign === -1 ? "-Infinity" : "Infinity";
+    if (this.isInfinite()) return this.sign === -1 || this.sign === -2 ? "-Infinity" : "Infinity";
 
     if (this.eq(MetaNum.ZERO)) return "0";
 
-    if (this.sign === -1) return "-" + this.abs().toString();
+    if (this.sign === -1 || this.sign === -2) return "-" + this.abs().toString();
+
+    if (isSmall(this)) {
+      // Three tiers of small value display
+      var recip = this.clone();
+      recip.sign = 1;  // Get the reciprocal (large number)
+      var mag = recip.log10();  // log10(reciprocal) = magnitude exponent
+      var maxSf = new MetaNum(MAX_SAFE_INTEGER);
+      var eMaxSf = MetaNum.pow(MetaNum.TEN, maxSf);
+      
+      // Tier 1: |x| > 1e-MAX_SAFE_INTEGER → -log10(|x|) < MAX_SAFE_INTEGER → mag < MAX_SAFE_INTEGER
+      if (mag.lt(maxSf)) {
+        var expVal = mag.toNumber();
+        if (Number.isFinite(expVal)) {
+          if (Number.isInteger(expVal)) {
+            return "1E-" + String(Math.round(expVal));
+          }
+          // Non-integer: normalize so mantissa is in [1, 10)
+          var frac = expVal - Math.floor(expVal);
+          var mantissa = Math.pow(10, 1 - frac);
+          var intExp = Math.floor(expVal) + 1;
+          var mantStr = mantissa.toPrecision(6).replace(/0+$/, '').replace(/\.$/, '');
+          return mantStr + "E-" + intExp;
+        }
+      }
+      
+      // Tier 2: MAX_SAFE_INTEGER ≤ mag < 10^MAX_SAFE_INTEGER
+      if (!mag.isInfinite() && mag.gte(maxSf) && mag.lt(eMaxSf)) {
+        // Format mag in scientific notation for the "e-AeB" format
+        var expStr = formatExponent(mag);
+        return "E-" + expStr;
+      }
+      
+      // Tier 3: mag ≥ 10^MAX_SAFE_INTEGER → display as reciprocal
+      if (recip.layer === 0 && recip.array.length === 1 && recip.array[0].length === 1) {
+        return recip.array[0][0] + "⁻¹";
+      }
+      return recip.toString() + "⁻¹";
+    }
 
     if (this.layer > 0) {
       var LAYER_SYMBOLS = {1: '!', 2: '@', 3: '#', 4: '$', 5: '%', 6: '&', 7: '~', 8: '<', 9: '>', 10: '?'};
@@ -2698,21 +3753,50 @@
       
       // Layer >= 11: use {m}ε{n} format
       if (this.layer >= 11) {
-        var s2 = "";
-        if (this.array.length >= 2) {
+        var epsVal;
+        var epsIsSpecial = false;
+        
+        // Check for special case: r0 stores ordinal level directly [coeff, m] with 99 <= m <= MAX_SAFE_INTEGER
+        if (this.array.length === 1 && this.array[0].length === 2 &&
+            this.array[0][1] >= 99 && this.array[0][1] <= MAX_SAFE_INTEGER) {
+          epsVal = this.array[0][1];
+          epsIsSpecial = true;
+        } else if (this.array.length >= 2) {
+          // Normal case: ordinal level from last row structure
+          // The ε value is the ordinal exponent (number of ordinal params = lastRow.length - 2)
           var lastRow = this.array[this.array.length - 1];
-          var lastCount = lastRow[0];
-          s2 = "{" + lastCount + "}\u03B5{" + this.layer + "}";
+          epsVal = lastRow[0] || 1;
         } else {
-          s2 = "\u03B5{" + this.layer + "}";
+          epsVal = this.array[0][0] || 1;
         }
-        s2 += " [" + this.array[0].join(",") + "]";
-        for (var i = 1; i < this.array.length - 1; i++) {
-          s2 += " [" + this.array[i].join(",") + "]";
+        
+        if (epsIsSpecial) {
+          return "{" + epsVal + "}\u03B5{" + (this.layer - 1) + "}";
         }
-        return s2;
+        // Normal case: bare format mεn for simple values
+        var epsStr;
+        if (Number.isInteger(epsVal) && epsVal >= 1 && epsVal <= 1e15) {
+          epsStr = String(epsVal);
+        } else {
+          epsStr = "{" + epsVal + "}";
+        }
+        // If there's more structure beyond the simple ε format, include array notation
+        if (this.array.length > 2 || (this.array.length === 2 && this.array[0].length > 1)) {
+          epsStr += " [" + this.array[0].join(",") + "]";
+          for (var i = 1; i < this.array.length - 1; i++) {
+            epsStr += " [" + this.array[i].join(",") + "]";
+          }
+        }
+        return epsStr + "\u03B5" + this.layer;
       }
       
+      // Layers 1-10: check for special ε compact format first
+      // Special case: r0 stores ordinal level directly [coeff, m] with 99 <= m <= MAX_SAFE_INTEGER
+      if (sym && this.array.length === 1 && this.array[0].length === 2 &&
+          this.array[0][1] >= 99 && this.array[0][1] <= Number.MAX_SAFE_INTEGER) {
+        return "{" + this.array[0][1] + "}\u03B5{" + (this.layer - 1) + "}";
+      }
+
       // Layers 1-10: try letter notation
       if (sym && this.array.length >= 2) {
         var ordTokens = [];
@@ -2761,12 +3845,22 @@
         
         if (validLetter && ordTokens.length > 0) {
           var finOps = formatFiniteOps(this.array[0]);
-          return sym + ordTokens.join("") + (finOps ? finOps : "");
+          var baseStr = "";
+          if (this.array[0].length === 1) {
+            baseStr = String(this.array[0][0]);
+          } else if (finOps !== "" && this.array[0].length >= 1 && this.array[0][0] > 0) {
+            baseStr = String(this.array[0][0]);
+          }
+          // Always include layer symbol for layers 1-10
+          if (this.layer >= 1 && finOps === "" && baseStr !== "") {
+            return sym + ordTokens.join("") + baseStr;
+          }
+          return sym + ordTokens.join("") + (finOps ? finOps : "") + baseStr;
         }
       }
       
       // Ultimate fallback: array notation with layer symbol
-      var s = (this.layer <= 10 ? LAYER_SYMBOLS[this.layer] || ("!".repeat(this.layer)) : "e" + this.layer) + " ";
+      var s = (this.layer <= 10 ? LAYER_SYMBOLS[this.layer] || ("!".repeat(this.layer)) : "E" + this.layer) + " ";
       for (var i = 0; i < this.array.length; i++) {
         if (i > 0) s += " ";
         s += "[" + this.array[i].join(",") + "]";
@@ -2808,6 +3902,31 @@
 
     // Layer 0 with ordinal rows: try letter notation
     if (this.array.length > 1) {
+      // Check if all ordinal rows are 2-element [count, value] (h10 ω-level format)
+      var allTwoElement = true;
+      for (var i = 1; i < this.array.length; i++) {
+        if (this.array[i].length !== 2) { allTwoElement = false; break; }
+      }
+      if (allTwoElement) {
+        // Check for truncation pattern: array[0] = [10] placeholder
+        var isTruncated = this.array[0].length === 1 && this.array[0][0] === 10;
+        if (isTruncated) {
+          // Show only the last row: count Aa value
+          var lastRow = this.array[this.array.length - 1];
+          return lastRow[0] + "Aa" + lastRow[1];
+        }
+        // Non-truncated: show all rows
+        var tokens = [];
+        for (var i = this.array.length - 1; i >= 1; i--) {
+          var row = this.array[i];
+          var tok = row[0] > 1 ? row[0] + "Aa" + row[1] : "Aa" + row[1];
+          tokens.push(tok);
+        }
+        var finOps = formatFiniteOps(this.array[0]);
+        var baseNum = decimalPlaces(this.array[0][0], 6);
+        return tokens.join("") + (finOps ? finOps : "") + baseNum;
+      }
+      
       var ordTokens = [];
       var validLetter = true;
       var useExclaim = false;
@@ -2888,7 +4007,7 @@
   };
 
   P.toStringWithDecimalPlaces = function (places) {
-    if (this.sign === -1) return "-" + this.abs().toStringWithDecimalPlaces(places);
+    if (this.sign === -1 || this.sign === -2) return "-" + this.abs().toStringWithDecimalPlaces(places);
     if (this.isNaN()) return "NaN";
     if (this.isInfinite()) return "Infinity";
     if (isSimple(this)) {
@@ -2899,7 +4018,7 @@
   };
 
   P.toExponential = function (places) {
-    if (this.sign === -1) return "-" + this.abs().toExponential(places);
+    if (this.sign === -1 || this.sign === -2) return "-" + this.abs().toExponential(places);
     if (this.isNaN()) return "NaN";
     if (this.isInfinite()) return "Infinity";
     if (isSimple(this)) return this.toNumber().toExponential(places);
@@ -2907,7 +4026,7 @@
   };
 
   P.toFixed = function (places) {
-    if (this.sign === -1) return "-" + this.abs().toFixed(places);
+    if (this.sign === -1 || this.sign === -2) return "-" + this.abs().toFixed(places);
     if (this.isNaN()) return "NaN";
     if (this.isInfinite()) return "Infinity";
     if (isSimple(this)) return this.toNumber().toFixed(places);
@@ -2915,7 +4034,7 @@
   };
 
   P.toPrecision = function (places) {
-    if (this.sign === -1) return "-" + this.abs().toPrecision(places);
+    if (this.sign === -1 || this.sign === -2) return "-" + this.abs().toPrecision(places);
     if (this.isNaN()) return "NaN";
     if (this.isInfinite()) return "Infinity";
     if (isSimple(this)) return this.toNumber().toPrecision(places);
@@ -2923,7 +4042,7 @@
   };
 
   P.toHyperE = function () {
-    if (this.sign === -1) return "-" + this.abs().toHyperE();
+    if (this.sign === -1 || this.sign === -2) return "-" + this.abs().toHyperE();
     if (this.isNaN()) return "NaN";
     if (this.isInfinite()) return "Infinity";
     if (isSimple(this)) {
@@ -2961,8 +4080,7 @@
     if (typeof sign === "number") x.sign = sign < 0 ? -1 : 1;
     else x.sign = 1;
     if (typeof layer === "number" && isFinite(layer) && layer >= 0) x.layer = Math.floor(layer);
-    else if (x.array.length > 1) x.layer = 1;
-    else x.layer = 0;
+    else x.layer = computeLayer(x.array);
     return x.normalize();
   };
 
@@ -3157,19 +4275,89 @@
       s = s.substring(layerMatch[0].length).trim();
     }
 
-    // Parse {m}ε{n} format (layer >= 11)
+    // Parse {m}ε{n} format - new rule: layer = n-1, ordinal = [1, 0_repeated_m, 1], r0 defaults to 10
+    // If m >= maxCols-1, row would exceed maxCols, so lift: array=[[10],[1,m]], layer=n
     var epsMatch = s.match(/^\{(\d+(?:\.\d+)?)\}\u03B5\{(\d+)\}\s*/);
     if (epsMatch) {
-      x.layer = parseInt(epsMatch[2], 10);
-      var epsCount = Number(epsMatch[1]);
+      var epsN = parseInt(epsMatch[2], 10);
+      var epsM = Math.floor(Number(epsMatch[1]));
       s = s.substring(epsMatch[0].length).trim();
-      if (x.layer >= 11) {
-        x.array[0] = [epsCount];
-        if (epsCount >= 1 && isFinite(epsCount)) {
-          x.array.push([epsCount, 0, 1]);
-        }
+      if (epsM < 1 || epsN < 1) {
+        x.array = [[0]];
+        if (negateIt) x.sign = -1;
+        return x;
+      }
+      if (epsM >= MetaNum.maxCols - 1) {
+        // m >= 99: row [1, 0_m, 1] exceeds maxCols, lift one layer
+        x.layer = epsN;
+        x.array[0] = [10];
+        x.array.push([1, epsM]);
+      } else {
+        x.layer = epsN - 1;
+        x.array[0] = [10];
+        // Build row [1, 0_repeated_epsM, 1]
+        var epsRow = [1];
+        for (var ei = 0; ei < epsM; ei++) epsRow.push(0);
+        epsRow.push(1);
+        x.array.push(epsRow);
       }
       if (negateIt) x.sign = -1;
+      // De-layer: Aa form ([*,0,1]) with small r0, reduce layer by 1
+      if (x.layer > 0 && x.array.length >= 2) {
+        var lastRow = x.array[x.array.length - 1];
+        if (lastRow.length === 3 && lastRow[1] === 0 && lastRow[lastRow.length - 1] === 1 &&
+            x.array[0].length === 1 && x.array[0][0] >= 0 && x.array[0][0] <= MetaNum.maxCols - 2) {
+          var baseVal = x.array[0][0];
+          lastRow = [lastRow[0]];
+          for (var di = 0; di < baseVal; di++) lastRow.push(0);
+          lastRow.push(1);
+          x.array[x.array.length - 1] = lastRow;
+          x.layer--;
+        }
+      }
+      return x.normalize();
+    }
+
+    // Parse mεn format without braces - same rule: layer = n-1, ordinal = [1, 0_repeated_m, 1], r0 defaults to 10
+    // If m >= maxCols-1, row would exceed maxCols, so lift: array=[[10],[1,m]], layer=n
+    var epsBareMatch = s.match(/^(\d+(?:\.\d+)?)\u03B5(\d+)\s*/);
+    if (epsBareMatch) {
+      var epsBareN = parseInt(epsBareMatch[2], 10);
+      var epsBareM = Math.floor(Number(epsBareMatch[1]));
+      s = s.substring(epsBareMatch[0].length).trim();
+      if (epsBareM < 1 || epsBareN < 1) {
+        x.array = [[0]];
+        if (negateIt) x.sign = -1;
+        return x;
+      }
+      if (epsBareM >= MetaNum.maxCols - 1) {
+        // m >= 99: row [1, 0_m, 1] exceeds maxCols, lift one layer
+        x.layer = epsBareN;
+        x.array[0] = [10];
+        x.array.push([1, epsBareM]);
+      } else {
+        x.layer = epsBareN - 1;
+        x.array[0] = [10];
+        // Build row [1, 0_repeated_epsBareM, 1]
+        var epsBareRow = [1];
+        for (var ebi = 0; ebi < epsBareM; ebi++) epsBareRow.push(0);
+        epsBareRow.push(1);
+        x.array.push(epsBareRow);
+      }
+      if (negateIt) x.sign = -1;
+      // De-layer: Aa form ([*,0,1]) with small r0, reduce layer by 1
+      if (x.layer > 0 && x.array.length >= 2) {
+        var lastRow = x.array[x.array.length - 1];
+        if (lastRow.length === 3 && lastRow[1] === 0 && lastRow[lastRow.length - 1] === 1 &&
+            x.array[0].length === 1 && x.array[0][0] >= 0 && x.array[0][0] <= MetaNum.maxCols - 2) {
+          var baseVal = x.array[0][0];
+          lastRow = [lastRow[0]];
+          for (var di = 0; di < baseVal; di++) lastRow.push(0);
+          lastRow.push(1);
+          x.array[x.array.length - 1] = lastRow;
+          x.layer--;
+        }
+      }
       return x.normalize();
     }
 
@@ -3322,6 +4510,19 @@
         x._oaRowData.push({isDiag: symRows2[gi3].isDiag});
       }
       if (negateIt) x.sign = -1;
+      // De-layer: Aa form [*,0,1] with small r0, reduce layer by 1
+      if (x.layer > 0 && x.array.length >= 2) {
+        var lastRow = x.array[x.array.length - 1];
+        if (lastRow.length === 3 && lastRow[1] === 0 && lastRow[lastRow.length - 1] === 1 &&
+            x.array[0].length === 1 && x.array[0][0] >= 0 && x.array[0][0] <= MetaNum.maxCols - 2) {
+          var baseVal = x.array[0][0];
+          lastRow = [lastRow[0]];
+          for (var di = 0; di < baseVal; di++) lastRow.push(0);
+          lastRow.push(1);
+          x.array[x.array.length - 1] = lastRow;
+          x.layer--;
+        }
+      }
       return x.normalize();
     }
 
@@ -3350,10 +4551,6 @@
       }
       rowIndex++;
       if (rowIndex >= MetaNum.maxRows) break;
-    }
-
-    if (rowIndex > 1) {
-      x.layer = 1;
     }
 
     if (rowIndex === 0) {
@@ -3410,10 +4607,20 @@
         }
       }
 
-      var oaMatch = rem.match(/^((?:[A-Z][a-z]+)+)(\d+)/);
+      // Handle layer symbol prefix + letter pattern + optional finOps + number (e.g., !Abcd1234, !AaE16, @Bcde500)
+      var symPrefixMatch = rem.match(/^([!@#\$%&~<>?])([A-Z][a-z]+(?:[A-Z][a-z]+)*)([A-Z]*)(\d+)\s*$/);
+      if (symPrefixMatch) {
+        var SYMBOL_LAYERS_P = {'!': 1, '@': 2, '#': 3, '$': 4, '%': 5, '&': 6, '~': 7, '<': 8, '>': 9, '?': 10};
+        x.layer = SYMBOL_LAYERS_P[symPrefixMatch[1]] || 1;
+        // Strip the symbol and let the rest fall through to oaMatch
+        rem = symPrefixMatch[2] + (symPrefixMatch[3] || '') + symPrefixMatch[4];
+      }
+
+      var oaMatch = rem.match(/^((?:[A-Z][a-z]+)+)([A-Z]*)(\d+)/);
       if (oaMatch) {
         var oaFullPrefix = oaMatch[1];
-        var oaN = Number(oaMatch[2]);
+        var oaFinOps = oaMatch[2];
+        var oaN = Number(oaMatch[3]);
         if (!isNaN(oaN) && isFinite(oaN) && oaN >= 1 && oaN === Math.floor(oaN)) {
           var oaTokens = [];
           var oaTokenRegex = /[A-Z][a-z]+/g;
@@ -3497,13 +4704,34 @@
           });
 
           x.array = [[oaN]];
+          // Apply finite ops to r0 (single uppercase letters between ordinal tokens and number)
+          if (oaFinOps) {
+            for (var fi = 0; fi < oaFinOps.length; fi++) {
+              var finLevel = oaFinOps.charCodeAt(fi) - 68; // E->1, F->2, G->3, ...
+              if (finLevel > 0) {
+                x.array[0][finLevel] = (x.array[0][finLevel] || 0) + 1;
+              }
+            }
+          }
           x._oaRowData = [];
           for (var gi = 0; gi < oaRows.length; gi++) {
             x.array.push(oaRows[gi].row);
             x._oaRowData.push({isDiag: oaRows[gi].isDiag});
           }
-          x.layer = 1;
           if (negateIt) x.sign = -1;
+          // De-layer: Aa form [*,0,1] with small r0, reduce layer by 1
+          if (x.layer > 0 && x.array.length >= 2) {
+            var lastRow = x.array[x.array.length - 1];
+            if (lastRow.length === 3 && lastRow[1] === 0 && lastRow[lastRow.length - 1] === 1 &&
+                x.array[0].length === 1 && x.array[0][0] >= 0 && x.array[0][0] <= MetaNum.maxCols - 2) {
+              var baseVal = x.array[0][0];
+              lastRow = [lastRow[0]];
+              for (var di = 0; di < baseVal; di++) lastRow.push(0);
+              lastRow.push(1);
+              x.array[x.array.length - 1] = lastRow;
+              x.layer--;
+            }
+          }
           return x.normalize();
         }
       }
@@ -3754,8 +4982,8 @@
     }
     var i, p, v,
       ps = [
-        'maxRows', 1, 1000,
-        'maxCols', 1, 1000,
+        'maxRows', 1, 100,
+        'maxCols', 1, 100,
         'maxArrow', 1, Number.MAX_SAFE_INTEGER,
         'serializeMode', 0, 1,
         'debug', 0, 2

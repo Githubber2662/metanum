@@ -1,11 +1,11 @@
 {
   "name": "metanum",
-  "version": "1.0",
+  "version": "1.1.0",
   "description": "A javascript library that handles numbers as large as f_ε₀(9e15)",
-  "main": "src/metanum.js",
+  "main": "metanum.js",
   "scripts": {
-    "test": "node test/test.js",
-    "example": "node examples/basic-usage.js"
+    "test": "node test.js",
+    "example": "node basic-usage.js"
   },
   "keywords": [
     "large-numbers",
