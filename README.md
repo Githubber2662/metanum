@@ -1,5 +1,7 @@
 # MetaNum
 
+[![NPM](https://img.shields.io/npm/v/metanum.svg)](https://www.npmjs.com/package/metanum)
+
 - MetaNum v1.1 by dlsdl
 
 A huge number library holding up to X↑↑X&9e15.
