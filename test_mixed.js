@@ -305,6 +305,42 @@ checkOp("ite(2,1)", m2.iter(1), 2, 0);
 checkBool("ite y=0 NaN", m2.iter(0).isNaN(), true);
 checkBool("ite NaN", MetaNum.iter(m2, MetaNum.NaN).isNaN(), true);
 
+// ─── 28. itermult (ω^ω+1): 迭代 ω^ω ───
+console.log("\n=== 28. itermult (ω^ω+1) ===");
+checkOp("itmu(2,1)", m2.itermult(1), m2.iter(m2).toNumber(), 0.01);
+checkBool("itmu y=0 NaN", m2.itermult(0).isNaN(), true);
+checkBool("itmu NaN", MetaNum.itermult(m2, MetaNum.NaN).isNaN(), true);
+
+// ─── 29. cuboiter (ω^ω*2) ───
+console.log("\n=== 29. cuboiter (ω^ω*2) ===");
+checkOp("cube(2,1)", m2.cuboiter(1), 2, 0);
+checkBool("cube NaN", MetaNum.cuboiter(m2, MetaNum.NaN).isNaN(), true);
+
+// ─── 30. expoiter (ω^(ω+1)) ───
+console.log("\n=== 30. expoiter (ω^(ω+1)) ===");
+checkOp("expo(2,1)", m2.expoiter(1), m2.iter(m2).toNumber(), 0.01);
+checkBool("expo NaN", MetaNum.expoiter(m2, MetaNum.NaN).isNaN(), true);
+
+// ─── 31. trioterate (ω^(ω*2)) ───
+console.log("\n=== 31. trioterate (ω^(ω*2)) ===");
+checkOp("tria(2,1)", m2.trioterate(1), m2.iter(m2).toNumber(), 0.01);
+checkBool("tria NaN", MetaNum.trioterate(m2, MetaNum.NaN).isNaN(), true);
+
+// ─── 32. trixxate (ω^(ω^2)) ───
+console.log("\n=== 32. trixxate (ω^(ω^2)) ===");
+checkOp("trix(2,1)", m2.trixxate(1), m2.trioterate(m2).toNumber(), 0.01);
+checkBool("trix NaN", MetaNum.trixxate(m2, MetaNum.NaN).isNaN(), true);
+
+// ─── 33. aperixxate (ω^(ω^ω)) ───
+console.log("\n=== 33. aperixxate (ω^(ω^ω)) ===");
+checkOp("apix(2,1)", m2.aperixxate(1), m2.trixxate(m2).toNumber(), 0.01);
+checkBool("apix NaN", MetaNum.aperixxate(m2, MetaNum.NaN).isNaN(), true);
+
+// ─── 34. epsilonate (ε₀) ───
+console.log("\n=== 34. epsilonate (ε₀) ===");
+checkOp("epsl(2,1)", m2.epsilonate(1), m2.aperixxate(m2).toNumber(), 0.01);
+checkBool("epsl NaN", MetaNum.epsilonate(m2, MetaNum.NaN).isNaN(), true);
+
 // ─────────────────────────────────────
 // 逆运算 语义验证 (pentate_log/root + 通用)
 // ─────────────────────────────────────
@@ -324,7 +360,8 @@ var ops = [
   "explode","multiexplode","aperioexplode","detonate","aperiodetonate",
   "aperionate","megote","multimegote","aperimegote","megoexpande",
   "aperimegoexpande","megoaperionation","gigote","aperigigote","gigoaperionate",
-  "aperiatotion","powiainate","expandainate","megodainate","powiairate","aperioguate","iter"
+  "aperiatotion","powiainate","expandainate","megodainate","powiairate","aperioguate","iter",
+  "itermult","cuboiter","expoiter","trioterate","trixxate","aperixxate","epsilonate"
 ];
 
 console.log("\n=== 全运算 x=3, y=2 冒烟测试 ===");
@@ -365,7 +402,11 @@ var qOps = {
   "aperiatotion": ["aperiatotion","apat"], "powiainate": ["powiainate","pwan"],
   "expandainate": ["expandainate","epan"], "megodainate": ["megodainate","mgan"],
   "powiairate": ["powiairate","pwar"], "aperioguate": ["aperioguate","apgu"],
-  "iter": ["iter","ite"]
+  "iter": ["iter","ite"],
+  "itermult": ["itermult","itmu"], "cuboiter": ["cuboiter","cube"],
+  "expoiter": ["expoiter","expo"], "trioterate": ["trioterate","tria"],
+  "trixxate": ["trixxate","trix"], "aperixxate": ["aperixxate","apix"],
+  "epsilonate": ["epsilonate","epsl"]
 };
 for (var key in qOps) {
   var f = MetaNum[key]; var s = MetaNum[qOps[key][1]];

@@ -1,5 +1,5 @@
-//Author: dlsdl v1.1
-//Add support for very small numbers ,add more hyper operations and fix bugs
+//Author: dlsdl v1.2
+//Add more hyper operations up to ε₀, add BEAF operation and fix bugs
 //Code snippets and templates from OmegaNum.js
 
 ;(function (globalScope) {
@@ -314,7 +314,7 @@
       }
 
       if (x.array.length > MetaNum.maxRows) {
-        x.array = x.array.slice(0, MetaNum.maxRows);
+        x.array = x.array.slice(x.array.length - MetaNum.maxRows);
         b = true;
       }
 
@@ -1698,6 +1698,9 @@
         return j;
       }
       var y = other.toNumber();
+      if (arrowsNum >= 23 && y !== Math.floor(y)) {
+        y = 10;
+      }
       var f = Math.floor(y);
       var arrows_m1 = arrows.sub(MetaNum.ONE);
       var r = t.arrow(arrows_m1)(y - f);
@@ -3594,15 +3597,363 @@
     return new MetaNum(x).inv_iter(z);
   };
 
-  /* hyper operations up to epsilon 0
-  1. itermult (ω^ω+1) = hw01
-  2. cuboiter (ω^ω*2) = hwx2
-  3. expoiter (ω^(ω+1)) = hwa1
-  4. trioterate (ω^(ω*2)) = hwm2
-  5. trixxate (ω^(ω^2)) = hwp2
-  6. aperixxate (ω^(ω^ω)) = hwpw
-  7. epsilonate (ω↑↑ω) = epsl
-  */
+  // itermult (ω^ω+1): iterates ω^ω level operations
+  // layer=1, array=[[count], [1, yn, 1]] — count applications of ω^ω
+  P.itermult = P.itmu = P.hw01 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.iter(x);
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yn = y.toNumber();
+      var base = x.iter(x);
+      if (y.eq(2)) return base;
+      var result = base.clone();
+      result.layer = 1;
+      result.array = [base.array[0].slice()];
+      result.array[0] = [yn];
+      result.array.push([1, yn, 1]);
+      result.normalize();
+      return result;
+    }
+    var result = y.clone();
+    result.layer = Math.max(result.layer, 1);
+    var base = x.iter(x);
+    result.array[0] = base.array[0].slice();
+    result.normalize();
+    return result;
+  };
+  Q.itermult = Q.itmu = Q.hw01 = function (x, y) {
+    return new MetaNum(x).itermult(y);
+  };
+
+  P.inv_itermult = P.i_itmu = P.iw01 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_itermult = Q.i_itmu = Q.iw01 = function (x, z) {
+    return new MetaNum(x).inv_itermult(z);
+  };
+
+  // cuboiter (ω^ω*2): (ω^ω)*2 = ω^ω + ω^base
+  // layer=1, array=[[1], [1, yn, 1], [1, 0, 1]]
+  P.cuboiter = P.cube = P.hwx2 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.itermult(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yn = y.toNumber();
+      if (y.eq(2)) return base;
+      var result = base.clone();
+      result.layer = 1;
+      result.array = [[1]];
+      result.array.push([1, yn, 1]);
+      result.array.push([1, 0, 1]);
+      result.normalize();
+      return result;
+    }
+    var result = y.clone();
+    result.layer = 1;
+    result.array[0] = base.array[0].slice();
+    result.array.push([1, 0, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.cuboiter = Q.cube = Q.hwx2 = function (x, y) {
+    return new MetaNum(x).cuboiter(y);
+  };
+
+  P.inv_cuboiter = P.i_cube = P.iwx2 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[1] === 0 && row[2] === 1 && row[0] === 1) {
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_cuboiter = Q.i_cube = Q.iwx2 = function (x, z) {
+    return new MetaNum(x).inv_cuboiter(z);
+  };
+
+  // expoiter (ω^(ω+1)): ω^(ω+1) = ω^ω * ω → ω^(ω*y)[y]
+  // layer=1, array=[[1], [yn, 0, 1]]
+  P.expoiter = P.expo = P.hwa1 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.iter(x);
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var base = x.iter(x);
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yn = y.toNumber();
+      if (y.eq(2)) return x.cuboiter(x);
+      var result = base.clone();
+      result.layer = 1;
+      result.array = [[1]];
+      result.array.push([yn, 0, 1]);
+      result.normalize();
+      return result;
+    }
+    var result = y.clone();
+    result.layer = 1;
+    result.array[0] = base.array[0].slice();
+    result.array.push([1, 0, 1]);
+    result.normalize();
+    return result;
+  };
+  Q.expoiter = Q.expo = Q.hwa1 = function (x, y) {
+    return new MetaNum(x).expoiter(y);
+  };
+
+  P.inv_expoiter = P.i_expo = P.iwa1 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 3 && row[2] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_expoiter = Q.i_expo = Q.iwa1 = function (x, z) {
+    return new MetaNum(x).inv_expoiter(z);
+  };
+
+  // trioterate (ω^(ω*2)): ω^(ω*2) = ω^(ω+y)[y]
+  // layer=1, array=[[1], [1, yn, 1]]
+  P.trioterate = P.tria = P.hwm2 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.iter(x);
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yn = y.toNumber();
+      var base = x.expoiter(x);
+      if (y.eq(2)) return base;
+      var result = base.clone();
+      result.layer = 1;
+      result.array = [[1]];
+      result.array.push([1, yn, 1]);
+      result.normalize();
+      return result;
+    }
+    var result = y.clone();
+    result.layer = 1;
+    var base = x.iter(x);
+    result.array[0] = base.array[0].slice();
+    result.normalize();
+    return result;
+  };
+  Q.trioterate = Q.tria = Q.hwm2 = function (x, y) {
+    return new MetaNum(x).trioterate(y);
+  };
+
+  P.inv_trioterate = P.i_tria = P.iwm2 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.array.length >= 2) {
+      var result = z.clone();
+      for (var i = result.array.length - 1; i >= 1; i--) {
+        var row = result.array[i];
+        if (row.length >= 4 && row[3] === 1 && row[0] > 0) {
+          row[0]--;
+          if (row[0] <= 0) result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+      return result;
+    }
+    return z;
+  };
+  Q.inv_trioterate = Q.i_tria = Q.iwm2 = function (x, z) {
+    return new MetaNum(x).inv_trioterate(z);
+  };
+
+  // trixxate (ω^(ω^2)): diagonalizes ω^(ω*y) at layer 2
+  // layer=2, array=[[1], [1, yn, 1]]
+  P.trixxate = P.trix = P.hwp2 = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.trioterate(x);
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yn = y.toNumber();
+      var base = x.trioterate(x);
+      if (y.eq(2)) return base;
+      var result = base.clone();
+      result.layer = 2;
+      result.array = [[1]];
+      result.array.push([1, yn, 1]);
+      result.normalize();
+      return result;
+    }
+    var result = y.clone();
+    result.layer = 2;
+    var base = x.trioterate(x);
+    result.array[0] = base.array[0].slice();
+    result.normalize();
+    return result;
+  };
+  Q.trixxate = Q.trix = Q.hwp2 = function (x, y) {
+    return new MetaNum(x).trixxate(y);
+  };
+
+  P.inv_trixxate = P.i_trix = P.iwp2 = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.layer >= 2) {
+      var result = z.clone();
+      result.layer--;
+      if (result.layer <= 0 && result.array.length <= 1) result.layer = 0;
+      result.normalize();
+      return result;
+    }
+    return z;
+  };
+  Q.inv_trixxate = Q.i_trix = Q.iwp2 = function (x, z) {
+    return new MetaNum(x).inv_trixxate(z);
+  };
+
+  // aperixxate (ω^(ω^ω)): diagonalizes ω^(ω^y) at layer 3
+  // Repetition count negligible for layer >= 2 (defaults to 1)
+  P.aperixxate = P.apix = P.hwpw = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.trixxate(x);
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yn = y.toNumber();
+      var base = x.trixxate(x);
+      if (y.eq(2)) return base;
+      var result = base.clone();
+      result.layer = 3;
+      result.array = [[1]];
+      result.array.push([1, yn, 1]);
+      result.normalize();
+      return result;
+    }
+    var result = y.clone();
+    result.layer = 3;
+    var base = x.trixxate(x);
+    result.array[0] = base.array[0].slice();
+    result.normalize();
+    return result;
+  };
+  Q.aperixxate = Q.apix = Q.hwpw = function (x, y) {
+    return new MetaNum(x).aperixxate(y);
+  };
+
+  P.inv_aperixxate = P.i_apix = P.iwpw = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.layer >= 3) {
+      var result = z.clone();
+      result.layer--;
+      if (result.layer <= 0 && result.array.length <= 1) result.layer = 0;
+      result.normalize();
+      return result;
+    }
+    return z;
+  };
+  Q.inv_aperixxate = Q.i_apix = Q.iwpw = function (x, z) {
+    return new MetaNum(x).inv_aperixxate(z);
+  };
+
+  // epsilonate (ε₀ = ω↑↑ω): diagonalizes ω↑↑y
+  // layer varies with y, array=[[1], [1, yn, 1]]
+  P.epsilonate = P.epsl = P.hepsl = function (y) {
+    var x = this.clone();
+    y = new MetaNum(y);
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.eq(MetaNum.ONE)) return x.aperixxate(x);
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    if (y.layer === 0 && y.array.length <= 1) {
+      var yn = y.toNumber();
+      var base = x.aperixxate(x);
+      if (y.eq(2)) return base;
+      var result = base.clone();
+      result.layer = 4;
+      result.array = [[1]];
+      result.array.push([1, yn, 1]);
+      result.normalize();
+      return result;
+    }
+    var result = y.clone();
+    result.layer = 4;
+    var base = x.aperixxate(x);
+    result.array[0] = base.array[0].slice();
+    result.normalize();
+    return result;
+  };
+  Q.epsilonate = Q.epsl = Q.hepsl = function (x, y) {
+    return new MetaNum(x).epsilonate(y);
+  };
+
+  P.inv_epsilonate = P.i_epsl = P.iepsl = function (z) {
+    var x = this.clone();
+    z = new MetaNum(z);
+    if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
+    if (z.layer >= 4) {
+      var result = z.clone();
+      result.layer--;
+      if (result.layer <= 0 && result.array.length <= 1) result.layer = 0;
+      result.normalize();
+      return result;
+    }
+    return z;
+  };
+  Q.inv_epsilonate = Q.i_epsl = Q.iepsl = function (x, z) {
+    return new MetaNum(x).inv_epsilonate(z);
+  };
 
 
   P.choose = function (other) {
@@ -3662,8 +4013,40 @@
       return count >= 4 ? pattern + "^" + count : pattern.repeat(count);
     }
     function formatFiniteOps(r0) {
-      var parts = [];
+      // Find the highest level
+      var highest = -1;
       for (var i = r0.length - 1; i >= 1; i--) {
+        if (r0[i] > 0) { highest = i; break; }
+      }
+      if (highest === -1) return "";
+
+      // If highest level is 23+, use normalized Aa notation
+      if (highest >= 23) {
+        var coeff = r0[highest];
+        var pow9 = 9;
+        for (var i = highest - 1; i >= 1; i--) {
+          coeff += (r0[i] || 0) / pow9;
+          pow9 *= 9;
+        }
+        // Carry: if coeff >= 9, move to next level
+        var level = highest;
+        while (coeff >= 9) {
+          coeff /= 9;
+          level++;
+        }
+        // Format coefficient
+        var coeffStr;
+        if (Math.abs(coeff - Math.round(coeff)) < 1e-12 && Math.round(coeff) <= Number.MAX_SAFE_INTEGER) {
+          coeffStr = String(Math.round(coeff));
+        } else {
+          coeffStr = decimalPlaces(coeff, 8);
+        }
+        return coeffStr + "Aa" + level;
+      }
+
+      // Letter notation for levels <= 22
+      var parts = [];
+      for (var i = highest; i >= 1; i--) {
         if (r0[i] > 0) {
           var letter = String.fromCharCode(68 + i);
           var token = formatCount(letter, r0[i]);
@@ -3845,11 +4228,14 @@
         
         if (validLetter && ordTokens.length > 0) {
           var finOps = formatFiniteOps(this.array[0]);
+          var hasAa = finOps && finOps.indexOf("Aa") !== -1;
           var baseStr = "";
-          if (this.array[0].length === 1) {
-            baseStr = String(this.array[0][0]);
-          } else if (finOps !== "" && this.array[0].length >= 1 && this.array[0][0] > 0) {
-            baseStr = String(this.array[0][0]);
+          if (!hasAa) {
+            if (this.array[0].length === 1) {
+              baseStr = String(this.array[0][0]);
+            } else if (finOps !== "" && this.array[0].length >= 1 && this.array[0][0] > 0) {
+              baseStr = String(this.array[0][0]);
+            }
           }
           // Always include layer symbol for layers 1-10
           if (this.layer >= 1 && finOps === "" && baseStr !== "") {
@@ -3874,26 +4260,59 @@
       if (r0.length === 1) return String(r0[0]);
 
       if (r0.length >= 24) {
-        var highestIdx = -1;
+        // Find highest level with non-zero value
+        var highest = -1;
         for (var j = r0.length - 1; j >= 1; j--) {
-          if (r0[j] && r0[j] !== 0) {
-            highestIdx = j;
-            break;
+          if (r0[j] && r0[j] !== 0) { highest = j; break; }
+        }
+        if (highest >= 23) {
+          // Normalized Aa notation: absorb all lower levels into coefficient
+          var coeff = r0[highest];
+          var pow9 = 9;
+          for (var j = highest - 1; j >= 1; j--) {
+            coeff += (r0[j] || 0) / pow9;
+            pow9 *= 9;
+          }
+          var level = highest;
+          while (coeff >= 9) {
+            coeff /= 9;
+            level++;
+          }
+          var coeffStr;
+          if (Math.abs(coeff - Math.round(coeff)) < 1e-12 && Math.round(coeff) <= Number.MAX_SAFE_INTEGER) {
+            coeffStr = String(Math.round(coeff));
+          } else {
+            coeffStr = decimalPlaces(coeff, 8);
+          }
+          return coeffStr + "Aa" + level;
+        }
+        // Fallback: letter notation for all levels
+        var result = "";
+        for (var j = r0.length - 1; j >= 1; j--) {
+          if (!r0[j] || r0[j] === 0) continue;
+          var letter = String.fromCharCode(68 + j);
+          if (r0[j] > 3) {
+            result += letter + "^" + r0[j] + " ";
+          } else {
+            result += letter.repeat(r0[j]);
           }
         }
-        if (highestIdx !== -1) {
-          return r0[highestIdx] + "Aa" + highestIdx;
-        }
+        result += decimalPlaces(r0[0], 6);
+        return result;
       }
 
       var result = "";
       for (var j = r0.length - 1; j >= 1; j--) {
         if (!r0[j] || r0[j] === 0) continue;
-        var letter = String.fromCharCode(68 + j);
-        if (r0[j] > 3) {
-          result += letter + "^" + r0[j] + " ";
+        if (j <= 22) {
+          var letter = String.fromCharCode(68 + j);
+          if (r0[j] > 3) {
+            result += letter + "^" + r0[j] + " ";
+          } else {
+            result += letter.repeat(r0[j]);
+          }
         } else {
-          result += letter.repeat(r0[j]);
+          result += r0[j] + "Aa" + j + " ";
         }
       }
       result += decimalPlaces(r0[0], 6);
@@ -3923,7 +4342,8 @@
           tokens.push(tok);
         }
         var finOps = formatFiniteOps(this.array[0]);
-        var baseNum = decimalPlaces(this.array[0][0], 6);
+        var hasAa = finOps && finOps.indexOf("Aa") !== -1;
+        var baseNum = hasAa ? "" : decimalPlaces(this.array[0][0], 6);
         return tokens.join("") + (finOps ? finOps : "") + baseNum;
       }
       
@@ -3974,8 +4394,9 @@
       
       if (validLetter) {
         var finOps = formatFiniteOps(this.array[0]);
+        var hasAa = finOps && finOps.indexOf("Aa") !== -1;
         var prefix = useExclaim ? "!" : "";
-        var baseNum = useExclaim ? "" : decimalPlaces(this.array[0][0], 6);
+        var baseNum = (useExclaim || hasAa) ? "" : decimalPlaces(this.array[0][0], 6);
         return prefix + ordTokens.join("") + (finOps ? finOps : "") + baseNum;
       }
     }
@@ -4885,10 +5306,12 @@
 
       if (cantorLevel < 0) cantorLevel = 0;
 
+      // Use maxVal as diag upper bound for proper cardinal expansion
+      var diagMax = Math.max(maxVal, 1);
+
       // Generate all combinations: numVals outer, diag inner (for increasing ordinal value)
-      // Order: nv=1(d=1..cantorLevel), nv=2(d=1..cantorLevel), ..., plus special row
-      for (var nv = 1; nv <= cantorLevel && rows.length < maxRows; nv++) {
-        for (var d = 1; d <= cantorLevel && rows.length < maxRows; d++) {
+      for (var nv = 1; nv <= diagMax && rows.length < maxRows; nv++) {
+        for (var d = 1; d <= diagMax && rows.length < maxRows; d++) {
           var total = Math.pow(maxVal + 1, nv);
           for (var ci = 0; ci < total && rows.length < maxRows; ci++) {
             var vals = [];
@@ -4905,14 +5328,10 @@
         }
       }
 
-      // Add boundary/special row [1, 0, ..., 0, 1] with (cantorLevel+1) zeros + diag=1
-      // For cantorLevel=0: generates the sole row [[1,0,1]] (1 zero)
-      // For cantorLevel>=2: adds the terminal row [1, 0, ..., 0, 1] with cantorLevel+1 zeros
-      // For cantorLevel=1: skip (not needed)
-      if ((cantorLevel === 0 || cantorLevel >= 2) && rows.length < maxRows) {
+      // Add boundary/special row [1, 0, ..., 0, 1] with (maxVal+1) zeros + diag=1
+      if (rows.length < maxRows) {
         var bRow = [1];
-        var zeroCount = (cantorLevel === 0) ? 1 : (cantorLevel + 1);
-        for (var k = 0; k < zeroCount; k++) bRow.push(0);
+        for (var k = 0; k < maxVal + 1; k++) bRow.push(0);
         bRow.push(1);
         rows.push(bRow);
       }
@@ -4996,6 +5415,266 @@
     }
     return this;
   }
+
+  // ==================== BEAF Ordinal Helpers ====================
+  // Build ordinal coefficient array from BEAF args
+  // coeffs[i] = args[i+2] - 1, where coeffs[0] = c-1 (ω^0), coeffs[1] = d-1 (ω^1), ...
+  Q._buildOrdinalCoeffs = function(args) {
+    var coeffs = [];
+    for (var i = 2; i < args.length; i++) {
+      coeffs.push(args[i].toNumber() - 1);
+    }
+    return coeffs;
+  };
+
+  // Expand highest ω^k term when b=2: ω^k → ω^{k-1}*(a-1) + ... + ω*(a-1) + (a-1)
+  Q._expandForB2 = function(coeffs, a) {
+    var k = coeffs.length - 1;
+    while (k >= 0 && coeffs[k] === 0) k--;
+    if (k < 0) return { coeffs: [0] };
+    if (k === 0) return { coeffs: coeffs };
+    // ω^k → ω^{k-1}*(a-1) + ... + ω*(a-1) + (a-1), single expansion only
+    var newCoeffs = coeffs.slice(0, k);
+    while (newCoeffs.length < k) newCoeffs.push(0);
+    for (var i = 0; i < k; i++) {
+      newCoeffs[i] = (newCoeffs[i] || 0) + (a - 1);
+    }
+    return { coeffs: newCoeffs };
+  };
+
+  // Generate ordinal rows in CNF from ω-level coefficients
+  // coeffs: [a₁, a₂, ..., aₖ] for ω^1, ω^2, ..., ω^k
+  // Each row is [count, v₀, v₁, ..., v_{k-1}, diag] representing count * (ω^k*diag + ω^{k-1}*v_{k-1} + ... + v₀)
+  Q._ordinalRowsForLevel = function(coeffs, count, maxRows) {
+    var rows = [];
+    var k = coeffs.length - 1;
+    var maxV0 = coeffs[0];
+
+    // Generate ω^1 rows (level 0): [count, v₀, diag]
+    for (var diag = coeffs[0]; diag >= 1 && rows.length < maxRows; diag--) {
+      var maxV = (diag === coeffs[0]) ? maxV0 - 1 : maxV0;
+      for (var v = maxV; v >= 0 && rows.length < maxRows; v--) {
+        rows.push([count, v, diag]);
+      }
+    }
+
+    if (k === 0) return rows;
+
+    // Recursively generate higher-level rows
+    // depth: number of intermediate ω coefficients left to generate
+    // values: array of already-generated coefficients (v_level, v_{level-1}, ..., v₁)
+    // diag: the highest ω power coefficient
+    // level: the current max ω power level
+    function genHigher(depth, values, diag, level) {
+      if (rows.length >= maxRows) return;
+      if (depth === 0) {
+        // Generate v₀ (the constant term)
+        var allHigherMax = (diag === coeffs[level]);
+        for (var i = 0; i < values.length && allHigherMax; i++) {
+          if (values[i] < maxV0) allHigherMax = false;
+        }
+        var maxV = allHigherMax ? maxV0 - 1 : maxV0;
+        for (var v = maxV; v >= 0 && rows.length < maxRows; v--) {
+          var row = [count, v];
+          for (var i = values.length - 1; i >= 0; i--) row.push(values[i]);
+          row.push(diag);
+          rows.push(row);
+        }
+      } else {
+        for (var v = maxV0; v >= 0 && rows.length < maxRows; v--) {
+          var newValues = values.slice();
+          newValues.push(v);
+          genHigher(depth - 1, newValues, diag, level);
+        }
+      }
+    }
+
+    // Generate rows for each higher ω power level
+    for (var level = k; level >= 1; level--) {
+      for (var diag = coeffs[level]; diag >= 1 && rows.length < maxRows; diag--) {
+        genHigher(level, [], diag, level);
+      }
+    }
+
+    return rows;
+  };
+
+  // Ordinal BEAF computation for 4+ arguments
+  Q._beafOrdinal = function(a, b, coeffs) {
+    var aNum = a.toNumber();
+    var bNum = b.toNumber();
+
+    if (bNum === 2) {
+      var expanded = Q._expandForB2(coeffs, aNum);
+      coeffs = expanded.coeffs;
+      bNum = aNum;
+      b = new MetaNum(aNum);
+    }
+
+    // When c=1 (coeffs[0] === 0) and b > 2, Rule 4 changes the formula:
+    // BEAF(a,b,1,d,...) = a(ω*(d-1)+...+(a-1)级运算)a
+    if (coeffs[0] === 0 && bNum > 2) {
+      coeffs[0] = aNum - 1;
+      bNum = aNum;
+      b = new MetaNum(aNum);
+    }
+
+    var base = a.arrow(coeffs[0])(b);
+
+    var count = bNum - 2;
+    if (count <= 0) return base;
+
+    if (coeffs.length <= 1) return base;
+
+    var upperCoeffs = coeffs.slice(1);
+    var maxRows = MetaNum.maxRows - 1;
+    var rows = Q._ordinalRowsForLevel(upperCoeffs, count, maxRows);
+
+    var result = base.clone();
+    for (var i = 0; i < rows.length; i++) {
+      result.array.push(rows[i]);
+    }
+    result.normalize();
+    return result;
+  };
+
+  // ==================== BEAF Array Notation ====================
+  // Bowers' Exploding Array Function: https://googology.fandom.com/wiki/Array_notation
+  // Rules:
+  //   1. {a} = a, {a,b} = a^b
+  //   2. {a,b,c,...,n,1} = {a,b,c,...,n}
+  //   3. {a,1,b,c,...,n} = a
+  //   4. {a,b,1,...,1,c,d,...,n} = {a,a,a,...,{a,b-1,1,...,1,c,d,...,n},c-1,d,...,n}
+  //   5. {a,b,c,d,...,n} = {a,{a,b-1,c,d,...,n},c-1,d,...,n}
+
+  // Internal recursive BEAF computation
+  Q._beafRecursive = function(args, depth) {
+    if (depth === undefined) depth = 0;
+    if (depth > 500) return MetaNum.NaN.clone(); // safety limit
+    var len = args.length;
+    if (len === 0) return MetaNum.ONE.clone();
+    if (len === 1) return args[0].clone();
+    if (len === 2) return args[0].pow(args[1]);
+
+    // Remove trailing 1s (Rule 2)
+    while (len > 2 && args[len - 1].eq(MetaNum.ONE)) { args.pop(); len--; }
+
+    // After removing trailing 1s, re-check length
+    if (len <= 2) {
+      return len === 1 ? args[0].clone() : args[0].pow(args[1]);
+    }
+
+    // 3-entry optimization: {a, b, c} = a{c}b (use hyperoperators)
+    if (len === 3) {
+      var c = args[2];
+      if (c.isint() && c.sign === 1) {
+        var cNum = c.toNumber();
+        if (isFinite(cNum) && cNum <= MetaNum.maxArrow) {
+          return args[0].arrow(c)(args[1]);
+        }
+      }
+      // Fall through to recursive computation for non-integer c
+    }
+
+    // Rule 3: {a, 1, ...} = a
+    if (args[1].eq(MetaNum.ONE)) return args[0].clone();
+
+    // 4+ arguments: use ordinal arithmetic instead of recursion
+    if (len >= 4) {
+      var coeffs = Q._buildOrdinalCoeffs(args);
+      return Q._beafOrdinal(args[0], args[1], coeffs);
+    }
+
+    // Rule 4: {a, b, 1, ..., 1, c, d, ...}
+    if (args[2].eq(MetaNum.ONE)) {
+      var pilotIdx = 2;
+      while (pilotIdx < len && args[pilotIdx].eq(MetaNum.ONE)) pilotIdx++;
+      if (pilotIdx >= len) {
+        return args[0].pow(args[1]);
+      }
+      var c = args[pilotIdx];
+      var newArgs = [args[0].clone()];
+      for (var i = 1; i < pilotIdx - 1; i++) newArgs.push(args[0].clone());
+      var orig = args.map(function(x) { return x.clone(); });
+      orig[1] = args[1].sub(MetaNum.ONE);
+      newArgs.push(Q._beafRecursive(orig, depth + 1));
+      newArgs.push(c.sub(MetaNum.ONE));
+      for (var i = pilotIdx + 1; i < len; i++) newArgs.push(args[i].clone());
+      return Q._beafRecursive(newArgs, depth + 1);
+    }
+
+    // Rule 5: {a, b, c, d, ...} = {a, BEAF(a, b-1, c, d, ...), c-1, d, ...}
+    var orig = args.map(function(x) { return x.clone(); });
+    orig[1] = args[1].sub(MetaNum.ONE);
+    var newArgs = [args[0].clone(), Q._beafRecursive(orig, depth + 1), args[2].sub(MetaNum.ONE)];
+    for (var i = 3; i < len; i++) newArgs.push(args[i].clone());
+    return Q._beafRecursive(newArgs, depth + 1);
+  };
+
+  // Public BEAF function: MetaNum.BEAF(a, b, c, ...)
+  Q.BEAF = function() {
+    var args = Array.prototype.slice.call(arguments);
+    if (args.length > MetaNum.maxCols) {
+      throw Error(metaNumError + 'BEAF: too many arguments (max ' + MetaNum.maxCols + ')');
+    }
+    var metaArgs = args.map(function(a) { return new MetaNum(a); });
+    return Q._beafRecursive(metaArgs);
+  };
+
+  // Parse BEAF string: {a,b,c,...}
+  Q.fromBeaf = function(str) {
+    if (typeof str !== 'string') return MetaNum.NaN.clone();
+    var s = str.trim();
+    if (s.charAt(0) !== '{' || s.charAt(s.length - 1) !== '}') {
+      return MetaNum.NaN.clone();
+    }
+    var inner = s.slice(1, -1).trim();
+    if (inner === '') return MetaNum.ONE.clone();
+    var parts = inner.split(',');
+    var args = [];
+    for (var i = 0; i < parts.length; i++) {
+      var val = Number(parts[i].trim());
+      if (!isFinite(val) || val < 1) return MetaNum.NaN.clone();
+      args.push(val);
+    }
+    return Q.BEAF.apply(null, args);
+  };
+
+  // Convert to BEAF string: {a,b,c,...}
+  P.toBeaf = function() {
+    var x = this.clone().normalize();
+    if (x.isNaN()) return 'NaN';
+    if (x.layer === 0 && x.array.length === 1) {
+      if (x.eq(MetaNum.ZERO)) return '{0}';
+      return '{' + decimalPlaces(x.array[0][0], 6) + '}';
+    }
+    if (x.layer > 0 || x.array.length > 1) {
+      if (x.array.length === 2 && x.array[1].length >= 3) {
+        var row = x.array[1];
+        var diag = row[row.length - 1];
+        if (diag === 1 && row[0] === 1) {
+          var vals = row.slice(1, row.length - 1);
+          var allNonNegative = true;
+          for (var i = 0; i < vals.length; i++) {
+            if (vals[i] < 0) { allNonNegative = false; break; }
+          }
+          if (allNonNegative) {
+            var a = decimalPlaces(x.array[0][0], 6);
+            // Reconstruct BEAF: {a, ?, c, d+1, e+1, ...} from ordinal [1, c, d, e, ..., 1]
+            var beafParts = [a, '?'];
+            for (var i = 0; i < vals.length - 1; i++) {
+              beafParts.push(String(vals[i] + 1));
+            }
+            beafParts.push(String(vals[vals.length - 1] + 1));
+            return '{' + beafParts.join(', ') + '}';
+          }
+        }
+      }
+    }
+    return '{' + x.array.map(function(r) {
+      return '[' + r.map(function(v) { return decimalPlaces(v, 6); }).join(', ') + ']';
+    }).join(', ') + '}';
+  };
 
   MetaNum = clone(MetaNum);
   MetaNum = defineConstants(MetaNum);

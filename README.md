@@ -2,7 +2,7 @@
 
 [![NPM](https://img.shields.io/npm/v/metanum.svg)](https://www.npmjs.com/package/metanum)
 
-- MetaNum v1.1 by dlsdl
+- MetaNum v1.2 by dlsdl
 
 A huge number library holding up to X↑↑X&9e15.
 
@@ -171,61 +171,112 @@ new MetaNum(10).layeradd10(3);  // 10^^3 (explicit base 10)
 
 ## Diagonalization / Expansion Hierarchy
 
-These functions represent iterated diagonalizations at increasing ordinal levels:
+These functions represent iterated diagonalizations at increasing ordinal levels from ω to ε₀:
 
 ```javascript
 const x = new MetaNum(10);
 
-// Level ω+1: iterate aperiate
-x.expande(3);           // expande(x, 3) = iterated aperiate
+// Level ω: diagonalize ω*y (→ a↑^a a)
+x.aperiote(3);            // aper(3) = h10
 
-// Level ω*2+1: iterate expande
-x.multiexpande(3);      // multiexpande(x, 3)
+// Level ω+1: iterate aperiote
+x.expande(3);             // expa(3) = h11
 
-// Level ω*3+1: iterate multiexpande
-x.powerexpande(3);
+// Level ω+2: iterate expande
+x.multiexpande(3);        // muea(3) = h12
 
-// Level ω^ω: diagonalize ω^x operations
-x.aperioexpansion(3);   // apea(x, 3)
+// Level ω+3: iterate multiexpande
+x.powerexpande(3);        // poea(3) = h13
 
-// Level ω^ω+1: iterate aperioexpansion
-x.explode(3);           // expl(x, 3)
+// Level ω*2: diagonalize ω+y
+x.aperioexpande(3);       // apea(3) = h20
 
-// Level ω^ω*2: diagonalize explode iterations
-x.multiexplode(3);      // muel(x, 3)
+// Level ω*2+1: iterate aperioexpande
+x.explode(3);             // expl(3) = h21
 
-// Level ω^(ω+1): diagonalize ω^ω*y
-x.aperioexplode(3);     // apel(x, 3)
+// Level ω*2+2: iterate explode
+x.multiexplode(3);        // muel(3) = h22
 
-// Level ω^(ω+1)+1: iterate aperioexplode
-x.detonate(3);          // deto(x, 3)
+// Level ω*3: diagonalize ω*2+y
+x.aperioexplode(3);       // apel(3) = h30
 
-// Level ω^(ω*2): diagonalize ω^(ω+1)*y
-x.aperionate(3);        // apeo(x, 3)
+// Level ω*3+1: iterate aperioexplode
+x.detonate(3);            // deto(3) = h31
 
-// Level ω^(ω*2)+1: iterate aperionate
-x.megote(3);            // mego(x, 3)
+// Level ω*4: diagonalize ω*3+y
+x.aperiodetonate(3);      // apdt(3) = h40
 
-// Level ω^(ω*2+ω): diagonalize ω^(ω*2)*y
-x.aperimegote(3);       // apmg(x, 3)
+// Level ω^2: diagonalize ω*y
+x.aperionate(3);          // apeo(3) = h100
 
-// Level ω^(ω*2+ω)+1: iterate aperimegote
-x.megoexpande(3);       // mgea(x, 3)
+// Level ω^2+1: iterate aperionate
+x.megote(3);              // mego(3) = h101
 
-// Level ω^(ω^2): diagonalize ω^(ω*2)
-x.megoaperionation(3);  // mgao(x, 3)
+// Level ω^2+2: iterate megote
+x.multimegote(3);         // mume(3) = h102
 
-// Level ω^(ω^2)+1: iterate megoaperionation
-x.gigote(3);            // gigo(x, 3)
+// Level ω^2+ω: diagonalize ω^2+y
+x.aperimegote(3);         // apmg(3) = h110
 
-// Level ω^(ω^3): diagonalize ω^(ω^2)*y
-x.aperiatotion(3);      // apat(x, 3)
+// Level ω^2+ω+1: iterate aperimegote
+x.megoexpande(3);         // mgea(3) = h111
 
-// Level ω^(ω^3)+1: iterate aperiatotion
-x.powiainate(3);        // pwan(x, 3)
+// Level ω^2+ω*2: diagonalize ω^2+ω+y
+x.aperimegoexpande(3);    // apme(3) = h120
 
-// Level ω^(ω^ω): universal diagonalizer (generalizes to arbitrary ordinals)
-x.iter(3);              // iter(x, 3)
+// Level ω^2*2: diagonalize ω^2+ω*y
+x.megoaperionation(3);    // mgao(3) = h200
+
+// Level ω^2*2+1: iterate megoaperionation
+x.gigote(3);              // gigo(3) = h201
+
+// Level ω^2*2+ω: diagonalize ω^2*2+y
+x.aperigigote(3);         // apgg(3) = h210
+
+// Level ω^2*3: diagonalize ω^2*2+ω*y
+x.gigoaperionate(3);      // ggap(3) = h300
+
+// Level ω^3: diagonalize ω^2*y
+x.aperiatotion(3);        // apat(3) = h1000
+
+// Level ω^3+1: iterate aperiatotion
+x.powiainate(3);          // pwan(3) = h1001
+
+// Level ω^3+ω: diagonalize ω^3+y
+x.expandainate(3);        // epan(3) = h1010
+
+// Level ω^3+ω^2: diagonalize ω^3+ω*y
+x.megodainate(3);         // mgan(3) = h1100
+
+// Level ω^3*2: diagonalize ω^3+ω^2*y
+x.powiairate(3);          // pwar(3) = h2000
+
+// Level ω^4: diagonalize ω^3*y
+x.aperioguate(3);         // apgu(3) = h10000
+
+// Level ω^ω: diagonalize ω^x (layer 1 transition)
+x.iter(3);                // ite(3) = hww
+
+// Level ω^ω+1: iterate ω^ω level operations
+x.itermult(3);            // itmu(3) = hw01
+
+// Level ω^ω*2: (ω^ω)*2 = ω^ω + ω^base
+x.cuboiter(3);            // cube(3) = hwx2
+
+// Level ω^(ω+1): ω^(ω+1) = ω^ω*ω → ω^(ω*y)
+x.expoiter(3);            // expo(3) = hwa1
+
+// Level ω^(ω*2): ω^(ω*2) = ω^(ω+base)
+x.trioterate(3);          // tria(3) = hwm2
+
+// Level ω^(ω^2): diagonalize ω^(ω*y) (layer 2)
+x.trixxate(3);            // trix(3) = hwp2
+
+// Level ω^(ω^ω): diagonalize ω^(ω^y) (layer 3)
+x.aperixxate(3);          // apix(3) = hwpw
+
+// Level ε₀ = ω↑↑ω: diagonalize ω↑↑y (layer 4)
+x.epsilonate(3);          // epsl(3) = hepsl
 ```
 
 ## Inverse Operations
@@ -233,24 +284,68 @@ x.iter(3);              // iter(x, 3)
 Each expansion operation has a corresponding inverse for decrementing ordinal structure:
 
 ```javascript
-x.i_aper(z)     // inverse of aperiate
-x.i_expa(z)     // inverse of expande
-x.i_muea(z)     // inverse of multiexpande
-x.i_poea(z)     // inverse of powerexpande
-x.i_apea(z)     // inverse of aperioexpansion
-x.i_expl(z)     // inverse of explode
-x.i_muel(z)     // inverse of multiexplode
-x.i_apel(z)     // inverse of aperioexplode
-x.i_deto(z)     // inverse of detonate
-x.i_apeo(z)     // inverse of aperionate
-x.i_mego(z)     // inverse of megote
-x.i_apmg(z)     // inverse of aperimegote
-x.i_mgea(z)     // inverse of megoexpande
-x.i_mgao(z)     // inverse of megoaperionation
-x.i_gigo(z)     // inverse of gigote
-x.i_apat(z)     // inverse of aperiatotion
-x.i_pwan(z)     // inverse of powiainate
-x.i_ite(z)      // inverse of iter
+x.i_aper(z)     // i10 = inverse of aperiote
+x.i_expa(z)     // i11 = inverse of expande
+x.i_muea(z)     // i12 = inverse of multiexpande
+x.i_poea(z)     // i13 = inverse of powerexpande
+x.i_apea(z)     // i20 = inverse of aperioexpande
+x.i_expl(z)     // i21 = inverse of explode
+x.i_muel(z)     // i22 = inverse of multiexplode
+x.i_apel(z)     // i30 = inverse of aperioexplode
+x.i_deto(z)     // i31 = inverse of detonate
+x.i_apdt(z)     // i40 = inverse of aperiodetonate
+x.i_apeo(z)     // i100 = inverse of aperionate
+x.i_mego(z)     // i101 = inverse of megote
+x.i_mume(z)     // i102 = inverse of multimegote
+x.i_apmg(z)     // i110 = inverse of aperimegote
+x.i_mgea(z)     // i111 = inverse of megoexpande
+x.i_apme(z)     // i120 = inverse of aperimegoexpande
+x.i_mgao(z)     // i200 = inverse of megoaperionation
+x.i_gigo(z)     // i201 = inverse of gigote
+x.i_apgg(z)     // i210 = inverse of aperigigote
+x.i_ggap(z)     // i300 = inverse of gigoaperionate
+x.i_apat(z)     // i1000 = inverse of aperiatotion
+x.i_pwan(z)     // i1001 = inverse of powiainate
+x.i_epan(z)     // i1010 = inverse of expandainate
+x.i_mgan(z)     // i1100 = inverse of megodainate
+x.i_pwar(z)     // i2000 = inverse of powiairate
+x.i_apgu(z)     // i10000 = inverse of aperioguate
+x.i_ite(z)      // iww = inverse of iter
+x.i_itmu(z)     // iw01 = inverse of itermult
+x.i_cube(z)     // iwx2 = inverse of cuboiter
+x.i_expo(z)     // iwa1 = inverse of expoiter
+x.i_tria(z)     // iwm2 = inverse of trioterate
+x.i_trix(z)     // iwp2 = inverse of trixxate
+x.i_apix(z)     // iwpw = inverse of aperixxate
+x.i_epsl(z)     // iepsl = inverse of epsilonate
+```
+
+## BEAF Operations
+
+Bowers' Exploding Array Function (BEAF) is supported via ordinal arithmetic for 4+ arguments:
+
+```javascript
+// 3-entry: {a,b,c} = a↑^c b (standard up-arrow notation)
+MetaNum.BEAF(3, 3, 2);       // 3↑↑3 = 7625597484987
+MetaNum.BEAF(3, 3, 3);       // 3↑↑↑3 = tritri
+
+// 4-entry: {a,b,c,d} = a(ω*(d-1)+(c-1) level operation)b
+MetaNum.BEAF(2, 2, 1, 2);    // = 4
+MetaNum.BEAF(3, 3, 3, 3);    // 3(ω*2+2 level operation)3
+
+// 5+ entry: ordinal arithmetic
+// BEAF(a,b,c,d,...,n) = a(ω^(n-3)*(arg_n-1)+...+ω*(d-1)+(c-1) level operation)b
+MetaNum.BEAF(10, 2, 1, 1, 2); // = BEAF(10,10,10,10) (ω^2 level operation)
+MetaNum.BEAF(3, 3, 3, 3, 2);  // 3(ω^2+ω*2+2 level operation)3
+
+// Parse BEAF string notation
+MetaNum.fromBeaf("{3,3,3}");         // 3↑↑↑3
+MetaNum.fromBeaf("{3,3,3,3}");       // 3(ω*2+2)3
+MetaNum.fromBeaf("{10,2,1,1,2}");    // 10(ω^2)2
+
+// Convert to BEAF string
+new MetaNum(7625597484987).toBeaf();  // "{7625597484987}"
+MetaNum.BEAF(3,3,3).toBeaf();        // "{3638334640023.7783}"
 ```
 
 ## Layer & Serialization
@@ -564,8 +659,9 @@ Then we can define (the β-th symbol or symbol combination)Aa = f\_ω^ω^...^ω(
 
 #### Using dlsdl's letter notation, the biggest number we can define in Metanum is about ε1.797e308.
 
-## Update log
+## Changelog
 
+- 2026-7-9 v1.2 Add more hyper operations up to ε₀, add BEAF operation and fix bugs
 - 2026-6-3 v1.1 Add support for very small numbers ,add more hyper operations and fix bugs
 - 2026-5-23 v1.0 Rewritten and add even more hyper operations
 - 2026-2-24 v0.4 Add hyper operations and extend fromString
