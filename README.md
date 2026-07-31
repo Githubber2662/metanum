@@ -2,7 +2,7 @@
 
 [![NPM](https://img.shields.io/npm/v/metanum.svg)](https://www.npmjs.com/package/metanum)
 
-- MetaNum v1.2 by dlsdl
+- MetaNum v1.3 by dlsdl
 
 A huge number library holding up to X↑↑X&9e15.
 
@@ -10,9 +10,11 @@ This reaches level f<sub>ε₀</sub>, which is the limit of well-defined express
 
 MetaNum provides a robust implementation of hierarchical number representation based on the Hardy hierarchy (HH) and ordinal arithmetic. It can handle numbers far beyond standard JavaScript Number limits, using a sophisticated multi-dimensional array structure to represent ordinal numbers up to ε₀ (ω^ω^ω^……with ω floors). Internally, each MetaNum instance is represented as:
 
-- **sign**: 1 (positive) or -1 (negative)
-- **layer**: Non-negative integer representing the ω exponent tower height
-- **array**: 2-dimensional array `[[r0, e, f, g, ...], [count, level], ...]` where the first row holds the base value and finite hyper-operation exponents, and subsequent rows hold ordinal terms
+- **sign**: 1 (positive), -1 (negative), 2 (reciprocal positive), -2 (reciprocal negative)
+- **array**: 2-dimensional array `[[r0, e, f, g, ...], [acount, a1, a2, ...], [bcount, b1, b2, ...], ...]` where the first row holds the base value and finite hyper-operation exponents(represents the value of ...g 10^^^'s f 10^^'s e 10^'s r0), and subsequent rows hold ordinal terms(bcount times hyperoperation with ordinal level ...ω^2*b3+ω^*b2+b1 and acount times hyperoperation with ordinal level ...ω^2*a3+ω^*a2+a1, etc.), ordinal terms are sorted by levels from small to big
+- **layer**: Non-negative integer representing the ω exponent tower height of hyperoperation level(ω^ω^……(ω polynomial) with layer ω^'s)
+
+A metanum number is nearly f_ω^ω^…(layer-1 ω^'s)…(…+ω^(…+ω^2*b3+ω^*b2+b1)*bcount+ω^(…+ω^2*a3+ω^*a2+a1)*acount)[…g 10^^^'s f 10^^'s e 10^'s r0](layer>=1) or f…[f^bcount_(…ω^2*b3+ω^*b2+b1)[f^acount_(…ω^2*a3+ω^*a2+a1)[…g 10^^^'s f 10^^'s e 10^'s r0]]…](layer=0) in Fast Growing Hierarchy
 
 ## Installation
 
@@ -29,7 +31,7 @@ const b = MetaNum.fromNumber(-3.14);
 
 // From a string (supports scientific notation, hyper-operations, letter notation, brackets, etc.)
 const c = new MetaNum("1.5e308");
-const d = MetaNum.fromString("10^^5");            // tetration: 10^^5
+const d = MetaNum.fromString("F5");            // tetration: 10^^5
 const e = MetaNum.fromString("E100#2");           // Hyper-E: 10^10^100 (googolplex)
 const f = MetaNum.fromString("GF^2 E^3 123");     // letter notation
 const g = MetaNum.fromString("Aa100");            // letter notation
@@ -169,7 +171,7 @@ new MetaNum(10).layeradd(3);    // add 3 layers of exponentiation
 new MetaNum(10).layeradd10(3);  // 10^^3 (explicit base 10)
 ```
 
-## Diagonalization / Expansion Hierarchy
+## Hyper-Operations up to ε₀
 
 These functions represent iterated diagonalizations at increasing ordinal levels from ω to ε₀:
 
@@ -661,6 +663,7 @@ Then we can define (the β-th symbol or symbol combination)Aa = f\_ω^ω^...^ω(
 
 ## Changelog
 
+- 2026-7-31 v1.3 Add format-metanum.js, fix basic operations, hyper operations and BEAF bugs
 - 2026-7-9 v1.2 Add more hyper operations up to ε₀, add BEAF operation and fix bugs
 - 2026-6-3 v1.1 Add support for very small numbers ,add more hyper operations and fix bugs
 - 2026-5-23 v1.0 Rewritten and add even more hyper operations

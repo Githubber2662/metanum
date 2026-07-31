@@ -33,9 +33,47 @@
         <h1>MetaNum Test Interface</h1>
 
         <h2>test in console</h2>
+
+<button id="runTestBtn">运行 test_mixed.js</button>
+<div id="consoleOutput" style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 4px; min-height: 100px; font-family: monospace; font-size: 14px; white-space: pre-wrap;"></div>
+
+<script>
+    document.getElementById('runTestBtn').addEventListener('click', function() {
+        const outputDiv = document.getElementById('consoleOutput');
+        outputDiv.innerHTML = '';
         
+        // 保存原始console.log
+        const originalLog = console.log;
+        
+        // 重写console.log以捕获输出
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const logEntry = document.createElement('div');
+            logEntry.textContent = args.map(arg => {
+                if (typeof arg === 'object') {
+                    return JSON.stringify(arg, null, 2);
+                }
+                return String(arg);
+            }).join(' ');
+            outputDiv.appendChild(logEntry);
+        };
+        
+        // 动态加载test_mixed.js
+        const script = document.createElement('script');
+        script.src = './test_mixed.js';
+        script.onload = function() {
+            console.log('test_mixed.js 加载完成');
+        };
+        script.onerror = function() {
+            console.log('加载 test_mixed.js 失败');
+            console.log = originalLog;
+        };
+        document.head.appendChild(script);
+    });
+</script>
     </div>
     <script src="./metanum.js"></script>
+    <script src="./format-metanum.js"></script>
     <script>
         // test in console
         console.log('=== MetaNum Library by dlsdl ===');
