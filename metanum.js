@@ -1,5 +1,5 @@
-//Author: dlsdl v1.3
-//Add format-metanum.js, fix basic operations, hyper operations and BEAF bugs
+//Author: dlsdl v1.4
+//Support hyper operation >MSI and fix format-metanum bugs
 //Code snippets and templates from OmegaNum.js
 
 ;(function (globalScope) {
@@ -48,8 +48,8 @@
   R.TETRATED_MAX_SAFE_INTEGER = "F" + MAX_SAFE_INTEGER;
   R.PENTATED_MAX_SAFE_INTEGER = "G" + MAX_SAFE_INTEGER;
   R.TRITRI = "[[3638334640023.7783, 7625597484984]]";
-  R.GRAHAMS_NUMBER = "[[3638334640023.7783,7625597484984,0,1],[63,0,1]]";//对3↑↑↑↑3(≈GE^7625597484984 3638334640023.7783)做63次ω级运算
-  R.TERR3 = "[[10],[1,374389,2],[1,374387,2],[1,374385,2],[1,374383,2],[1,374381,2],[1,374379,2],[1,374377,2],[1,374375,2],[1,374373,2],[1,374371,2]]"; //注意是TERR而不是TREE，详见https://www.bilibili.com/video/BV1X94y1n7D1
+  R.GRAHAMS_NUMBER = "[[3638334640023.7783,7625597484984,0,1],[63,0,1]]";
+  R.TERR3 = "[[10],[1,374389,2],[1,374387,2],[1,374385,2],[1,374383,2],[1,374381,2],[1,374379,2],[1,374377,2],[1,374375,2],[1,374373,2],[1,374371,2]]"; //https://www.bilibili.com/video/BV1X94y1n7D1
   R.QqQe308 = "QqQe308";
 
   function cmpArr(a, b) {
@@ -278,6 +278,32 @@
 
     var small = isSmall(x);
 
+    // Convert very small values to reciprocal representation (sign=2/-2)
+    // When r0 = [base, 1] and base < -308, value = 10^base < 10^-308 (underflows)
+    // Store as reciprocal: r0 = [-base, 1] with sign=2
+    if (!small && x.layer === 0) {
+      // Check for E-level only (r0[1] >= 1, no higher levels)
+      var hasHigherLevel = false;
+      for (var hl = 2; hl < r0.length; hl++) {
+        if (r0[hl] > 0) { hasHigherLevel = true; break; }
+      }
+      if (!hasHigherLevel && r0.length >= 2 && r0[1] === 1 && r0[0] < -308 && isFinite(r0[0])) {
+        // E notation with very negative exponent: 10^(negative) → reciprocal of 10^(positive)
+        r0[0] = -r0[0];
+        x.sign = (x.sign === -1) ? -2 : 2;
+        small = true;
+      } else if (r0.length === 1 && r0[0] > 0 && r0[0] < 1e-308) {
+        // Very tiny number: convert to reciprocal via log10
+        var logRecip = -Math.log10(r0[0]);
+        if (isFinite(logRecip) && logRecip > 0) {
+          r0[0] = logRecip;
+          r0[1] = 1;
+          x.sign = (x.sign === -1) ? -2 : 2;
+          small = true;
+        }
+      }
+    }
+
     do {
       b = false;
 
@@ -493,14 +519,28 @@
     while (tRows > 1 && isZeroArr(this.array[tRows - 1])) tRows--;
     while (oRows > 1 && isZeroArr(other.array[oRows - 1])) oRows--;
 
-    if (tRows !== oRows) return (tRows > oRows ? 1 : -1) * m;
-
-    for (var i = tRows - 1; i >= 0; i--) {
-      var c = cmpArr(this.array[i], other.array[i]);
+    // Compare ordinal rows (index >= 1) as Cantor normal form. Rows are kept
+    // sorted by level ascending, so the leading (highest-level) term is last and
+    // dominates: a single ω-level row (length >= 3, e.g. [1,0,1]) is larger than
+    // any number of finite-level rows (length 2, e.g. [count, finiteLevel]),
+    // because 10{ω}10 is infinite while 10{n}10 is finite. Deciding by row count
+    // alone would wrongly rank 99 finite-level rows above 1 ω-level row, so we
+    // descend from the top, cancelling equal leading rows, and decide at the
+    // first row whose level/count differs (cmpArr encodes level then count).
+    var i = tRows - 1;
+    var j = oRows - 1;
+    while (i >= 1 || j >= 1) {
+      var aRow = (i >= 1) ? this.array[i] : null;
+      var bRow = (j >= 1) ? other.array[j] : null;
+      if (aRow === null) return -1 * m; // other has a higher-level term this lacks
+      if (bRow === null) return 1 * m;
+      var c = cmpArr(aRow, bRow);
       if (c !== 0) return c * m;
+      i--;
+      j--;
     }
-
-    return 0;
+    // All ordinal rows matched; compare the base row (index 0).
+    return cmpArr(this.array[0], other.array[0]) * m;
   };
   Q.compare = Q.cmp = function (x, y) {
     return new MetaNum(x).cmp(y);
@@ -786,6 +826,31 @@
       x.array.push([count, rawLevel]);
     }
     return x;
+  }
+
+  // Like toNumber(), but returns the actual finite JS value for E-notation
+  // numbers (e.g. 10^16 stored as [[16,1]]) instead of Infinity. This is used
+  // by hyperoperation functions (expande/multiexpande/powerexpande) to compute
+  // iteration counts `count = y - 2` when y is a large-but-finite MetaNum.
+  //
+  // toNumber() returns Infinity whenever r0.length > 1 (E-notation) or the
+  // array has ordinal rows, which is too conservative for count extraction:
+  // 10^16 is a perfectly finite JS number. We only return Infinity for genuine
+  // ordinals (layer>0 or array.length>1) or values too large for any JS number
+  // (tetration+ or 10^(>=309)); the caller falls back to the ordinal branch.
+  function metaFiniteCount(y) {
+    if (y.isNaN()) return NaN;
+    if (y.layer > 0) return Infinity;            // ω^ω^... tower
+    if (y.array.length > 1) return Infinity;     // has ordinal rows
+    var r0 = y.array[0];
+    if (r0.length === 1) return r0[0];           // plain finite number
+    if (r0.length === 2 && r0[1] === 1) {
+      // E-notation: value = 10^r0[0], finite JS number when r0[0] <= 308
+      var v = Math.pow(10, r0[0]);
+      return isFinite(v) ? v : Number.MAX_VALUE; // 10^(>=309): cap at MAX_VALUE
+    }
+    // r0[1] >= 2 (tetration+) or r0.length >= 3: too large, cap at MAX_VALUE
+    return Number.MAX_VALUE;
   }
 
   P.plus = P.add = function (other) {
@@ -1626,7 +1691,6 @@
     return MetaNum.arrow(x, 3, y);
   };
 
-  //pentate_log和pentate_root
   P.pentate_log = P.pent_log = function (base) {
     if (base === undefined) base = 10;
     var x = this.clone();
@@ -1731,7 +1795,7 @@
     return new MetaNum(x).pentate_root(height);
   };
   
-
+  // region >=ω level operations
   P.arrow = function (arrows) {
     var t = this.clone();
     arrows = new MetaNum(arrows);
@@ -1755,51 +1819,36 @@
       }
       if (arrows.gte(MetaNum.maxArrow)) {
         // arrows is very large but still a JS number; use approximate overflow
-        var j = t.max(other).clone();
+        var j = t.max(other).max(arrows).clone();
         j.array.push([1, 0, 1]);
         j.normalize();
         return j;
       }
-      if (arrowsNum >= MetaNum.maxCols && t.array.length === 1 && other.array.length === 1) {
-        var a = t.array[0][0];
-        var b = other.array[0][0];
-        if (b >= 2) {
-          var count = b - 2;
-          var baseResult = t.arrow(MetaNum.maxCols - 1)(other);
-          if (arrowsNum === MetaNum.maxCols) {
-            baseResult.array[0][MetaNum.maxCols - 1] = (baseResult.array[0][MetaNum.maxCols - 1] || 0) + count;
-            baseResult.normalize();
-            return baseResult;
-          }
-          if (arrowsNum === MetaNum.maxCols + 1) {
-            baseResult.array[0][MetaNum.maxCols - 1] = (baseResult.array[0][MetaNum.maxCols - 1] || 0) + count;
-            baseResult.normalize();
-            baseResult = addOrdinalRow(baseResult, count, MetaNum.maxCols);
-            baseResult.normalize();
-            return baseResult;
-          }
-          var endLevel = arrowsNum - 1;
-          var startLevel = MetaNum.maxCols;
-          var totalOrdinal = endLevel - startLevel + 1;
-          if (totalOrdinal + 1 <= MetaNum.maxRows) {
-            var r = t.arrow(MetaNum.maxCols - 1)(other);
-            for (var lev = startLevel; lev <= endLevel; lev++) {
-              r = addOrdinalRow(r, count, lev);
-            }
-          } else {
-            var r = new MetaNum(10);
-            var keepStart = endLevel - MetaNum.maxRows + 2;
-            for (var lev = keepStart; lev <= endLevel; lev++) {
-              r = addOrdinalRow(r, count, lev);
-            }
-          }
-          r.normalize();
-          return r;
-        }
-      }
-      if (arrowsNum > 1000000) {
+      if (arrowsNum >= MetaNum.maxCols) {
+        // Compact ordinal-row representation: 10{1000}10 → [[10],[1,1000]].
+        // One [1|arrowsNum] row on top of the larger operand; finite arrow
+        // levels beyond r0 capacity no longer expand into a cascade of rows.
+        // Swallowing: a finite level sits below any existing ω-level row.
         var j = t.max(other).clone();
-        j.array.push([1, 0, 1]);
+        if (j.layer > 0) return j; // ω^ω-tower swallows any finite level
+        var idx = -1;
+        for (var i = j.array.length - 1; i >= 1; i--) {
+          var row = j.array[i];
+          if (row && row.length >= 2 && (row[0] || 0) > 0) { idx = i; break; }
+        }
+        if (idx < 0) {
+          j.array.push([1, arrowsNum]);
+        } else {
+          var top = j.array[idx].slice(1);
+          while (top.length > 0 && top[top.length - 1] === 0) top.pop();
+          var c = cmpCoeffsLevel([arrowsNum], top);
+          if (c > 0) {
+            j.array.push([1, arrowsNum]);
+          } else if (c === 0) {
+            j.array[idx][0] = Math.min((j.array[idx][0] || 0) + 1, MAX_SAFE_INTEGER);
+          }
+          // c < 0: swallowed by the larger ordinal structure already present
+        }
         j.normalize();
         return j;
       }
@@ -1875,12 +1924,13 @@
     return new MetaNum(x).arrow(arrows)(y);
   };
 
-  //calc level ω = x{y}x
+  //calc level ω: x{ω}y = x{y}y (fundamental sequence ω[y] = y)
+  //  aperiote(x,0) = x{0}0 = 0; aperiote(x,1) = x{1}1 = x; aperiote(x,2) = x{2}2 = x^x; ...
   P.aperiote = P.aper = P.h10 = function (y) {
-    return this.arrow(y)(this);
+    return this.arrow(y)(y);
   };
   Q.aperiote = Q.aper = Q.h10 = function (x, y) {
-    return new MetaNum(x).arrow(y)(x);
+    return new MetaNum(x).aperiote(y);
   };
 
   P.inv_aperiote = P.i_aper = P.i10 = function (z) {
@@ -1917,7 +1967,7 @@
     return new MetaNum(x).inv_aperiote(z);
   };
 
-  //ω+1 x{{1}}y
+  //calc level ω+1 x{ω+1}y, computed by the unified ordinal engine
   P.expande = P.expa = P.h11 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
@@ -1925,27 +1975,10 @@
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
-    var base = x.aperiote(x);  // expande(x, 2) = x{x}x
-    if (y.layer === 0 && y.array.length <= 1) {
-      // finite y: r0 from base, [y-2, 0, 1] for ω+1 level
-      var result = base.clone();
-      if (y.eq(2)) return result;
-      var count = y.toNumber() - 2;
-      if (count > 0) {
-        result.layer = 0;
-        result.array = [base.array[0].slice()];
-        result.array.push([count, 0, 1]);
-        result.normalize();
-      }
-      return result;
-    }
-    // ordinal y: clone y, set r0, add [1, 1, 1]
-    var result = y.clone();
-    result.array[0] = base.array[0].slice();
-    result.layer = 0;
-    result.array.push([1, 1, 1]);
-    result.normalize();
-    return result;
+    var base = x.aperiote(x);  // expande(x, 2) = x{x}x = x{ω}x
+    if (y.eq(2)) return base.clone();
+    if (y.lt(2)) return base.clone(); // 1 < y < 2: the aperiote base
+    return Q._hyperopFromOrdinal(x, y, [1, 1]);
   };
   Q.expande = Q.expa = Q.h11 = function (x, y) {
     return new MetaNum(x).expande(y);
@@ -1968,11 +2001,13 @@
           return result;
         }
       }
-      // For finite y: find [count, 0, 1] and return count + 2
+      // For finite y: find [count, 0, 1] and return count + warmup.
+      // warmup = number of iterate steps before V exceeded MSI, + 1:
+      //   x > MSI → 1 ; x{ω}x > MSI → 2 ; x{ω}(x{ω}x) > MSI → 3 ; ...
       for (var i = x.array.length - 1; i >= 1; i--) {
         var row = x.array[i];
         if (row.length >= 3 && row[1] === 0 && row[2] === 1 && row[0] > 0) {
-          return new MetaNum(row[0] + 2);
+          return new MetaNum(row[0] + hyperopWarmup(z, [0, 1]));
         }
       }
     }
@@ -1982,7 +2017,7 @@
     return new MetaNum(x).inv_expande(z);
   };
 
-  //ω+2 x{{2}}y
+  //calc level ω+2 x{ω+2}y, computed by the unified ordinal engine
   P.multiexpande = P.muea = P.h12 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
@@ -1991,25 +2026,9 @@
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.expande(x);  // multiexpande(x, 2)
-    if (y.layer === 0 && y.array.length <= 1) {
-      var result = base.clone();
-      if (y.eq(2)) return result;
-      var count = y.toNumber() - 2;
-      if (count > 0) {
-        result.layer = 0;
-        result.array = [base.array[0].slice()];
-        result.array.push([1, 0, 1]);
-        result.array.push([count, 1, 1]);
-        result.normalize();
-      }
-      return result;
-    }
-    var result = y.clone();
-    result.array[0] = base.array[0].slice();
-    result.layer = 0;
-    result.array.push([1, 2, 1]);
-    result.normalize();
-    return result;
+    if (y.eq(2)) return base.clone();
+    if (y.lt(2)) return base.clone(); // 1 < y < 2
+    return Q._hyperopFromOrdinal(x, y, [2, 1]);
   };
   Q.multiexpande = Q.muea = Q.h12 = function (x, y) {
     return new MetaNum(x).multiexpande(y);
@@ -2032,11 +2051,11 @@
           return result;
         }
       }
-      // For finite y: find [count, 1, 1] and return count + 2
+      // For finite y: find [count, 1, 1] and return count + warmup
       for (var i = x.array.length - 1; i >= 1; i--) {
         var row = x.array[i];
         if (row.length >= 3 && row[1] === 1 && row[2] === 1 && row[0] > 0) {
-          return new MetaNum(row[0] + 2);
+          return new MetaNum(row[0] + hyperopWarmup(z, [1, 1]));
         }
       }
     }
@@ -2046,7 +2065,7 @@
     return new MetaNum(x).inv_multiexpande(z);
   };
 
-  //ω+3 x{{3}}y
+  //calc level ω+3 x{ω+3}y, computed by the unified ordinal engine
   P.powerexpande = P.poea = P.h13 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
@@ -2055,26 +2074,9 @@
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.multiexpande(x);  // powerexpande(x, 2)
-    if (y.layer === 0 && y.array.length <= 1) {
-      var result = base.clone();
-      if (y.eq(2)) return result;
-      var count = y.toNumber() - 2;
-      if (count > 0) {
-        result.layer = 0;
-        result.array = [base.array[0].slice()];
-        result.array.push([1, 0, 1]);
-        result.array.push([1, 1, 1]);
-        result.array.push([count, 2, 1]);
-        result.normalize();
-      }
-      return result;
-    }
-    var result = y.clone();
-    result.array[0] = base.array[0].slice();
-    result.layer = 0;
-    result.array.push([1, 3, 1]);
-    result.normalize();
-    return result;
+    if (y.eq(2)) return base.clone();
+    if (y.lt(2)) return base.clone(); // 1 < y < 2
+    return Q._hyperopFromOrdinal(x, y, [3, 1]);
   };
   Q.powerexpande = Q.poea = Q.h13 = function (x, y) {
     return new MetaNum(x).powerexpande(y);
@@ -2097,11 +2099,11 @@
           return result;
         }
       }
-      // For finite y: find [count, 2, 1] and return count + 2
+      // For finite y: find [count, 2, 1] and return count + warmup
       for (var i = x.array.length - 1; i >= 1; i--) {
         var row = x.array[i];
         if (row.length >= 3 && row[1] === 2 && row[2] === 1 && row[0] > 0) {
-          return new MetaNum(row[0] + 2);
+          return new MetaNum(row[0] + hyperopWarmup(z, [2, 1]));
         }
       }
     }
@@ -2111,28 +2113,223 @@
     return new MetaNum(x).inv_powerexpande(z);
   };
 
+  // ---------------------------------------------------------------------------
+  // Unified ordinal hyperoperation engine — implements README rules 1-4:
+  //   rule 1: x{0}y = x*y
+  //   rule 2: x{α}1 = x;  x{α}y = (x{α-1}) iterated (y-1) times from x
+  //   rule 3: x{λ}y = x{λ[y]}y   (fundamental sequence at y)
+  //   rule 4: operations compose right-to-left
+  // Representation rules for operands/intermediates beyond MSI:
+  //   x{α}y ≈ 10{α}y when y > MSI → y itself plus one ordinal row [1|α]
+  //   (the iteration count y is unrepresentable, so it diagonalizes to a
+  //   single α-level marker — the supremum of count-limited iterations).
+  // Swallowing (right-to-left composition): applying level β to a value
+  // whose top ordinal row level is γ:
+  //   β > γ → push a new [k|β] row ; β = γ → top count += k ; β < γ → no change
+  //   (e.g. 10{ω}10{ω+2}10 = 10{ω+2}10). Counts are always capped at MSI.
+  // ---------------------------------------------------------------------------
+
+  var COEFF_BOUND = 100; // cascade bound: larger coefficients supremum-collapse
+
+  function trimCoeffs(coeffs) {
+    while (coeffs.length > 0 && (coeffs[coeffs.length - 1] || 0) === 0) coeffs.pop();
+    return coeffs;
+  }
+
+  function coeffsHaveOmegaPart(coeffs) {
+    for (var i = 1; i < coeffs.length; i++) if ((coeffs[i] || 0) !== 0) return true;
+    return false;
+  }
+
+  // fundamental sequence of a limit ordinal at cardinal n:
+  //   ω^p*cp + rest → ω^p*(cp-1) + ω^(p-1)*n   (p = smallest index ≥ 1 with cp > 0)
+  function fsCoeffs(coeffs, n) {
+    var r = trimCoeffs(coeffs.slice());
+    var p = 1;
+    while (p < r.length && (r[p] || 0) === 0) p++;
+    if (p >= r.length) return r;
+    r[p] = r[p] - 1;
+    r[p - 1] = (r[p - 1] || 0) + n;
+    return trimCoeffs(r);
+  }
+
+  // α-1 for successor α (c0 > 0)
+  function succCoeffs(coeffs) {
+    var r = coeffs.slice();
+    r[0] = (r[0] || 0) - 1;
+    return trimCoeffs(r);
+  }
+
+  function cmpCoeffsLevel(a, b) {
+    var m = Math.max(a.length, b.length);
+    for (var i = m - 1; i >= 0; i--) {
+      var av = i < a.length ? (a[i] || 0) : 0;
+      var bv = i < b.length ? (b[i] || 0) : 0;
+      if (av !== bv) return av - bv;
+    }
+    return 0;
+  }
+
+  // ordinal level coefficients of an ordinal row [count, c0, c1, ..., cp]
+  function rowToCoeffs(row) {
+    return trimCoeffs(row.slice(1));
+  }
+
+  // Supremum-collapse of oversized coefficients: ω^k*c with c > COEFF_BOUND
+  // behaves like ω^(k+1) (c is effectively unbounded); applied only when the
+  // ordinal already has an ω-part so pure finite levels stay exact.
+  function collapseCoeffs(coeffs) {
+    var r = coeffs.slice();
+    if (!coeffsHaveOmegaPart(r)) return trimCoeffs(r);
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var i = 0; i < r.length; i++) {
+        if ((r[i] || 0) > COEFF_BOUND) {
+          r[i] = 0;
+          while (r.length <= i + 1) r.push(0);
+          r[i + 1] = (r[i + 1] || 0) + 1;
+          changed = true;
+        }
+      }
+    }
+    return trimCoeffs(r);
+  }
+
+  // Apply k operations of ordinal level `beta` to V (right-to-left composition
+  // with swallowing). beta normally carries an ω-part (finite levels go
+  // through arrow()).
+  Q._applyOrdinalRows = function (V, beta, k) {
+    var x = V.clone();
+    if (!(k >= 1)) return x.normalize();
+    if (k > MAX_SAFE_INTEGER) k = MAX_SAFE_INTEGER;
+    var bt = trimCoeffs((beta || []).slice());
+    if (bt.length === 0 || !coeffsHaveOmegaPart(bt)) {
+      // finite level (fallback path; the engine normally uses arrow here)
+      var lev = Math.floor(bt.length ? bt[0] : 0);
+      return x.arrow(lev)(x).normalize();
+    }
+    var idx = -1;
+    for (var i = x.array.length - 1; i >= 1; i--) {
+      var row = x.array[i];
+      if (row && row.length >= 2 && (row[0] || 0) > 0) { idx = i; break; }
+    }
+    if (idx < 0) {
+      // no ordinal rows yet: any ω-level sits above the finite r0 chain
+      x.array.push([k].concat(bt));
+    } else {
+      var c = cmpCoeffsLevel(bt, rowToCoeffs(x.array[idx]));
+      if (c > 0) {
+        x.array.push([k].concat(bt));
+      } else if (c === 0) {
+        var cnt = (x.array[idx][0] || 0) + k;
+        x.array[idx][0] = cnt > MAX_SAFE_INTEGER ? MAX_SAFE_INTEGER : cnt;
+      }
+      // c < 0: swallowed by the larger ordinal structure on the right
+    }
+    return x.normalize();
+  };
+
+  Q._ordinalHyperop = function (x, y, coeffs, depth) {
+    x = new MetaNum(x);
+    y = new MetaNum(y);
+    if (depth === undefined) depth = 0;
+    if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.sign === -1 || y.sign === -2) return MetaNum.NaN.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var cf = collapseCoeffs(trimCoeffs((coeffs || []).slice()));
+    if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
+    if (y.eq(MetaNum.ONE)) return x.clone();
+    if (cf.length === 0) return x.mul(y); // rule 1: x{0}y = x*y
+
+    if (!coeffsHaveOmegaPart(cf)) {
+      // finite level: arrow() handles both small and huge operands
+      return x.arrow(cf[0] || 0)(y);
+    }
+
+    var yCnt = metaFiniteCount(y);
+    if (!(yCnt <= MAX_SAFE_INTEGER)) {
+      // y beyond MSI (or ordinal): x{α}y ≈ 10{α}y = y + one α-row
+      return Q._applyOrdinalRows(y, cf, 1);
+    }
+    if (depth > 2000) {
+      // cascade budget exhausted: approximate residual level with one row
+      return Q._applyOrdinalRows(x.max(y), cf, 1);
+    }
+    if ((cf[0] || 0) > 0) {
+      // successor: x{α}y = iterate x{α-1} from x, y-1 times
+      return Q._iterateOrdinal(x, succCoeffs(cf), x.clone(), yCnt - 1, depth);
+    }
+    // limit ordinal: fundamental sequence at y
+    var pL = 1;
+    while (pL < cf.length && (cf[pL] || 0) === 0) pL++;
+    // A fundamental sequence whose cardinal is cascade-unrepresentable would
+    // need more distinct ordinal levels than the array can hold — collapse to
+    // the diagonalized single-row form (supremum of the iteration hierarchy).
+    var hugeFs = yCnt > COEFF_BOUND && (pL >= 2 || (cf[1] || 0) > 1);
+    if (hugeFs) return Q._applyOrdinalRows(x.max(y), cf, 1);
+    return Q._ordinalHyperop(x, y, fsCoeffs(cf, yCnt), depth + 1);
+  };
+
+  Q._iterateOrdinal = function (x, beta, V0, iters, depth) {
+    var V = V0.clone();
+    var i = 0;
+    var guard = 0;
+    while (i < iters) {
+      if (++guard > 200) return Q._applyOrdinalRows(V, beta, iters - i);
+      var vCnt = metaFiniteCount(V);
+      if (!(vCnt <= MAX_SAFE_INTEGER)) {
+        // V is huge: every further application adds one β-row → fast-forward
+        return Q._applyOrdinalRows(V, beta, iters - i);
+      }
+      V = Q._ordinalHyperop(x, V, beta, (depth || 0) + 1);
+      i++;
+    }
+    return V;
+  };
+
   // Helper: generic hyperoperation from ordinal level (Cantor normal form coefficients).
   // coeffs: [c0, c1, c2, ..., ck] where ordinal = ω^k*ck + ... + ω^2*c2 + ω*c1 + c0
-  Q._hyperopFromOrdinal = function(x, y, coeffs) {
+  // Two computation paths:
+  //   - small operands (x ∈ [3, MSI] finite, y ∈ [3, MSI] finite, enumeration of
+  //     ordinals below α with coefficients < y fits into maxRows): legacy
+  //     enumeration representation (one row per ordinal below α, count = y-2)
+  //   - everything else (any operand beyond MSI, x = 2, or enumeration too large):
+  //     unified ordinal engine (README rules 1-4)
+  Q._hyperopFromOrdinal = function (x, y, coeffs) {
     x = new MetaNum(x);
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
+    if (y.sign === -1 || y.sign === -2) return MetaNum.NaN.clone();
+    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
+    var cf = trimCoeffs((coeffs || []).slice());
+    if (cf.length === 0) return x.mul(y); // rule 1: x{0}y = x*y
+    var deg = 0;
+    for (var di = 1; di < cf.length; di++) if ((cf[di] || 0) !== 0) deg = di;
+    if (deg >= 1 && x.array.length === 1 && x.layer === 0
+        && y.array.length === 1 && y.layer === 0) {
+      var xC = metaFiniteCount(x), yC = metaFiniteCount(y);
+      if (xC >= 3 && xC <= MAX_SAFE_INTEGER && yC >= 3 && yC <= MAX_SAFE_INTEGER
+          && Math.pow(yC, deg) <= MetaNum.maxRows) {
+        return Q._enumHyperop(x, y, cf);
+      }
+    }
+    return Q._ordinalHyperop(x, y, cf);
+  };
 
+  // Legacy (HEAD-compatible) enumeration-based hyperoperation for small operands.
+  Q._enumHyperop = function (x, y, coeffs) {
     var xNum = x.toNumber();
     var yNum = y.toNumber();
     var maxRows = MetaNum.maxRows; // 100
-
     var baseArrowLevel = Math.max(Math.floor(isFinite(xNum) ? xNum : 3), 3);
     var baseResult = x.arrow(baseArrowLevel)(x);
-
     var rows = Q._generateOrdinalRows(coeffs,
       isFinite(xNum) ? Math.floor(xNum) : baseArrowLevel,
       isFinite(yNum) ? Math.floor(yNum) : baseArrowLevel,
       maxRows);
-
     var result = baseResult.clone();
     result.array = [baseResult.array[0].slice()];
     for (var i = 0; i < rows.length; i++) result.array.push(rows[i]);
@@ -2140,26 +2337,257 @@
     return result;
   };
 
+  // Legacy (HEAD-compatible) ordinal row enumeration: one row per ordinal below
+  // `coeffs` (coefficients bounded by `cardinal`), each with count = cardinal-2.
+  Q._generateOrdinalRows = function (coeffs, base, cardinal, maxRows) {
+    var rows = [];
+    var m = base;
+    var n = cardinal;
+
+    function compareOrd(a, b) {
+      var maxLen = Math.max(a.length, b.length);
+      for (var i = maxLen - 1; i >= 0; i--) {
+        var va = (i < a.length) ? (a[i] || 0) : 0;
+        var vb = (i < b.length) ? (b[i] || 0) : 0;
+        if (va < vb) return -1;
+        if (va > vb) return 1;
+      }
+      return 0;
+    }
+
+    function addOrd(a, b) {
+      if (!b || b.length === 0 || (b.length === 1 && b[0] === 0)) return a.slice();
+      if (!a || a.length === 0 || (a.length === 1 && a[0] === 0)) return b.slice();
+      var result = a.slice();
+      var k = 0;
+      while (k < result.length && (result[k] || 0) === 0) k++;
+      if (k >= result.length) {
+        return b.slice();
+      } else if (k === 0) {
+        result[0] = (result[0] || 0) + (b[0] || 0);
+        for (var i = 1; i < b.length; i++) {
+          result[i] = (result[i] || 0) + (b[i] || 0);
+        }
+      } else {
+        result[k] = 0;
+        result = result.slice(0, k);
+        for (var i = 0; i < b.length; i++) {
+          result.push(b[i] || 0);
+        }
+      }
+      while (result.length > 0 && result[result.length - 1] === 0) result.pop();
+      return result;
+    }
+
+    function isZero(ord) {
+      if (!ord || ord.length === 0) return true;
+      for (var i = 0; i < ord.length; i++) {
+        if ((ord[i] || 0) !== 0) return false;
+      }
+      return true;
+    }
+
+    function buildRow(ord, count) {
+      var maxIdx = ord.length - 1;
+      while (maxIdx >= 0 && (ord[maxIdx] || 0) === 0) maxIdx--;
+      if (maxIdx < 0) return null;
+      var row = [count];
+      for (var i = 0; i <= maxIdx - 1; i++) row.push(ord[i] || 0);
+      row.push(ord[maxIdx]);
+      return row;
+    }
+
+    // Enumerate all ordinals below ω^k with coefficients < n
+    function enumBelowOmegaK(k, n) {
+      if (k === 0) {
+        return [[0]];
+      }
+      if (k === 1) {
+        var result = [];
+        for (var i = 0; i < n; i++) {
+          result.push([i]);
+        }
+        return result;
+      }
+      var result = [];
+      for (var a = 0; a < n; a++) {
+        var sub = enumBelowOmegaK(k - 1, n);
+        for (var i = 0; i < sub.length; i++) {
+          var combined = sub[i].slice();
+          while (combined.length < k) combined.push(0);
+          combined[k - 1] = a;
+          result.push(combined);
+        }
+      }
+      return result;
+    }
+
+    // Enumerate all ordinals below a given ordinal
+    function enumBelow(alpha, n) {
+      if (isZero(alpha)) return [];
+
+      if ((alpha[0] || 0) > 0) {
+        var pred = alpha.slice();
+        pred[0]--;
+        while (pred.length > 0 && pred[pred.length - 1] === 0) pred.pop();
+        if (pred.length === 0) pred = [0];
+        var result = enumBelow(pred, n);
+        result.push(pred.slice());
+        return result;
+      }
+
+      var k = alpha.length - 1;
+      while (k >= 0 && (alpha[k] || 0) === 0) k--;
+      if (k < 0) return [];
+
+      var ck = alpha[k] || 0;
+      var rest = alpha.slice(0, k);
+      while (rest.length > 0 && rest[rest.length - 1] === 0) rest.pop();
+
+      var result = [];
+
+      for (var j = 0; j < ck; j++) {
+        var sub = enumBelowOmegaK(k, n);
+        for (var i = 0; i < sub.length; i++) {
+          var combined = sub[i].slice();
+          while (combined.length <= k) combined.push(0);
+          combined[k] = j;
+          result.push(combined);
+        }
+      }
+
+      if (!isZero(rest)) {
+        var restSub = enumBelow(rest, n);
+        for (var i = 0; i < restSub.length; i++) {
+          var combined = restSub[i].slice();
+          while (combined.length <= k) combined.push(0);
+          combined[k] = ck;
+          result.push(combined);
+        }
+      }
+
+      return result;
+    }
+
+    var count = n - 2;
+    if (count < 1) return rows;
+
+    var allOrdinals = enumBelow(coeffs, n);
+
+    var seen = {};
+    var uniqueOrdinals = [];
+    for (var i = 0; i < allOrdinals.length; i++) {
+      var ord = allOrdinals[i];
+      if (isZero(ord)) continue;
+
+      // Normalize: remove trailing zeros
+      var normalized = ord.slice();
+      while (normalized.length > 0 && normalized[normalized.length - 1] === 0) {
+        normalized.pop();
+      }
+
+      // Skip ordinals below ω (finite ordinals: only constant term, length <= 1)
+      if (normalized.length <= 1) continue;
+
+      var key = normalized.join(',');
+      if (seen[key]) continue;
+      seen[key] = true;
+      uniqueOrdinals.push(normalized);
+    }
+
+    uniqueOrdinals.sort(function (a, b) {
+      return compareOrd(a, b);
+    });
+
+    var allRows = [];
+    for (var i = 0; i < uniqueOrdinals.length; i++) {
+      var row = buildRow(uniqueOrdinals[i], count);
+      if (row) allRows.push(row);
+    }
+
+    var maxOrdinalRows = maxRows - 1;
+    if (allRows.length > maxOrdinalRows) {
+      allRows = allRows.slice(allRows.length - maxOrdinalRows);
+    }
+
+    for (var i = 0; i < allRows.length; i++) {
+      rows.push(allRows[i]);
+    }
+
+    return rows;
+  };
+
+  // Helper: number of leading iterate applications (of level `beta`) starting
+  // from x before the running value exceeds MSI, plus 1. This is the offset j
+  // such that op(x, y) = ... [y-j | beta] ..., used by the inverse operators to
+  // recover y from the count row.
+  function hyperopWarmup(x, beta) {
+    var V = new MetaNum(x);
+    var steps = 0;
+    while (steps < 4) {
+      if (!(metaFiniteCount(V) <= MAX_SAFE_INTEGER)) break;
+      V = Q._ordinalHyperop(x, V, beta);
+      steps++;
+    }
+    return steps + 1;
+  }
+
   // Helper: generic inverse hyperoperation from ordinal level.
-  // Forward: op(base, arg) generates ordinal rows with count = arg - 2
-  // Inverse: inv_op(result, base) should return arg
-  Q._invHyperopFromOrdinal = function(x, z, coeffs) {
+  // Forward paths and the rows they leave:
+  //   - small x ∈ [3, MSI] & small y (enumeration path): rows for each ordinal
+  //     below α, each with count = y-2 → inverse: top row count + 2
+  //   - x > MSI or x = 2 (engine path), small y: count row [c | β] where β is
+  //     α-1 (successor) → y = c + warmup(z, β)  (warmup: 1 if z > MSI, else 2/3)
+  //   - huge/ordinal y (engine path): marker row [1 | α] → strip and return
+  //     the remainder as y
+  Q._invHyperopFromOrdinal = function (x, z, coeffs) {
     x = new MetaNum(x);
     z = new MetaNum(z);
     if (x.isNaN() || z.isNaN()) return MetaNum.NaN.clone();
-
-    // If x has no ordinal rows, return z itself
     if (x.array.length <= 1) return z;
 
-    // Find the largest ordinal row (at the end of the array)
-    var lastIdx = x.array.length - 1;
-    var row = x.array[lastIdx];
-    if (!row) return z;
+    var cf = trimCoeffs((coeffs || []).slice());
 
-    // The forward operation generates rows with count = arg - 2
-    // So the inverse is: arg = count + 2
-    var count = row[0] || 0;
-    return new MetaNum(count + 2);
+    // marker row [1 | α] (huge/ordinal y): return the remainder as y
+    for (var i = x.array.length - 1; i >= 1; i--) {
+      var row = x.array[i];
+      if (row && row.length >= 2 && row[0] === 1) {
+        var lv = rowToCoeffs(row);
+        if (cf.length > 0 && cmpCoeffsLevel(lv, cf) === 0) {
+          var result = x.clone();
+          result.array.splice(i, 1);
+          result.normalize();
+          if (result.array.length <= 1) result.layer = 0;
+          return result;
+        }
+      }
+    }
+    if (cf.length === 0) return z;
+
+    // enumeration path (base z is a small finite number ≥ 3): top row count = y-2
+    var zC = metaFiniteCount(z);
+    if (z.array.length === 1 && z.layer === 0 && zC >= 3 && zC <= MAX_SAFE_INTEGER) {
+      var lastRow = x.array[x.array.length - 1];
+      if (lastRow && lastRow.length >= 2 && (lastRow[0] || 0) > 0) {
+        return new MetaNum((lastRow[0] || 0) + 2);
+      }
+      return z;
+    }
+
+    // engine path: count row [c | β] with β = α-1 (successor α only)
+    var below = null;
+    if ((cf[0] || 0) > 0) below = succCoeffs(cf);
+    if (below && coeffsHaveOmegaPart(below)) {
+      for (var i = x.array.length - 1; i >= 1; i--) {
+        var row = x.array[i];
+        if (row && row.length >= 2 && (row[0] || 0) > 0) {
+          if (cmpCoeffsLevel(rowToCoeffs(row), below) === 0) {
+            return new MetaNum((row[0] || 0) + hyperopWarmup(z, below));
+          }
+        }
+      }
+    }
+    return z;
   };
 
   // ---------------------------------------------------------------------------
@@ -2477,8 +2905,21 @@
     return Q._invHyperopFromOrdinal(x, z, [0,0,0,0,1]);
   };
 
+  // ---------------------------------------------------------------------------
+  // Hyperoperations from ω^ω up to ε₀
+  // ---------------------------------------------------------------------------
+
   // iter (ω^ω): diagonalizes ω^x operations
   // k <= maxCols-2: layer 0, multi-index; k >= maxCols-1: layer 1
+  // e.g. iter(3,5)=3{ω^ω}5=3{ω^5}5=3{ω^4*4+ω^3*4+ω^2*4+ω*4+5}5=(3{ω^4*4+ω^3*4+ω^2*4+ω*4+4})^3...
+  // so iter(3,5) → layer=0, max array row=[3,4,4,4,4,4]
+  // for maxcol-1 <= k <= MSI, iter(3,k)=3{ω^ω}k=3{ω^k}k
+  // reference to README.md, when layer=1, array=[[0],[1,k]] represents 10{ω^k}10
+  // array [[1], [1,k]] represents 10{ω^k+1}10=10{ω^k}^9 10
+  // so iter(3,k)≈10{ω^k}10 → layer=1, max array row=[[0],[1,k]]
+  // for k > MSI, iter(3,k)≈10{ω^ω}MSI → layer=1, array=[[0],[1,0,1]], which represents 10{ω^ω}MSI
+  // 10{ω^ω+1}x (2<=x<=10, =10{ω^ω+1}(>MSI) if x=2) should be treated as 10{ω^ω+a}10, a=log5(x/2)
+  // iter(10,iter(10,10))=10{ω^ω}10{ω^ω}10=10{ω^ω+1}3→array=[[log5(3/2)],[1,0,1]]
   P.iteration = P.iter = P.hww = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
@@ -2502,9 +2943,13 @@
         result.normalize();
         return result;
       } else {
-        // y >= maxLevel: promote to layer 1, compact format
+        // y >= maxLevel: promote to layer 1, compact format [[x],[1,yn]]
+        // ordinal level ω^y needs a row longer than maxCols, so it is stored
+        // as layer=1 (level = ω^P with P = yn constant); cap at MSI
         var result = x.clone();
-        result.array.push([1, yn, 1]);
+        result.layer = 1;
+        var yv = yn > MAX_SAFE_INTEGER ? MAX_SAFE_INTEGER : yn;
+        result.array.push([1, yv]);
         result.normalize();
         return result;
       }
@@ -2552,6 +2997,13 @@
           return result;
         }
       }
+      // For finite y >= maxLevel (layer-1 compact): find [1, yn] and return yn
+      for (var i = x.array.length - 1; i >= 1; i--) {
+        var row = x.array[i];
+        if (row.length === 2 && row[0] === 1 && row[1] > 0 && x.layer >= 1) {
+          return new MetaNum(row[1]);
+        }
+      }
       // For finite y >= maxLevel: find [1, yn, 1] and return yn
       for (var i = x.array.length - 1; i >= 1; i--) {
         var row = x.array[i];
@@ -2582,13 +3034,15 @@
   };
 
   // itermult (ω^ω+1): iterates ω^ω level operations
-  // layer=1, array=[[count], [1, yn, 1]] — count applications of ω^ω
+    // for k <= MSI, itmu(3,k)=3{ω^ω+1}k=3{ω^ω}3{ω^ω}...3 with k 3's
+    // ≈10{ω^ω+1}k → layer=1, array=[[n],[1,0,1]] (n=log5(k/2) if 2<=k<10, n=1 if k>=10)
+    // for k > MSI, itmu(3,k)≈10{ω^ω+1}MSI → layer=1, array=[[1],[1,0,1]]
   P.itermult = P.itmu = P.hw01 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
-    if (y.eq(MetaNum.ONE)) return x.iter(x);
+    if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     if (y.layer === 0 && y.array.length <= 1) {
       var yn = y.toNumber();
@@ -2637,8 +3091,10 @@
     return new MetaNum(x).inv_itermult(z);
   };
 
-  // cuboiter (ω^ω*2): (ω^ω)*2 = ω^ω + ω^base
-  // layer=1, array=[[1], [1, yn, 1], [1, 0, 1]]
+  // cuboiter (ω^ω*2): x{(ω^ω)*2}y = x{ω^ω+ω^y}y
+    // for k <= MSI, cube(3,k)=3{ω^ω+ω^k}k
+    // ≈10{ω^ω+ω^k}k → layer=1, array=[[0],[1,k],[1,0,1]]
+    // for k > MSI, cube(3,k)≈10{ω^ω*2}MSI → layer=1, array=[[0],[2,0,1]]
   P.cuboiter = P.cube = P.hwx2 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
@@ -2700,14 +3156,16 @@
     return new MetaNum(x).inv_cuboiter(z);
   };
 
-  // expoiter (ω^(ω+1)): ω^(ω+1) = ω^ω * ω → ω^(ω*y)[y]
-  // layer=1, array=[[1], [yn, 0, 1]]
+  // expoiter (ω^(ω+1)): x{ω^(ω+1)}y = x{ω^ω * y}y
+    // for k <= MSI, expo(3,k)=3{ω^ω*k}k
+    // ≈10{ω^ω*k}k → layer=1, array=[[0],[k,0,1]]
+    // for k > MSI, expo(3,k)≈10{ω^(ω+1)}MSI → layer=1, array=[[0],[1,1,1]]
   P.expoiter = P.expo = P.hwa1 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
-    if (y.eq(MetaNum.ONE)) return x.iter(x);
+    if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var base = x.iter(x);
     if (y.layer === 0 && y.array.length <= 1) {
@@ -2761,14 +3219,16 @@
     return new MetaNum(x).inv_expoiter(z);
   };
 
-  // trioterate (ω^(ω*2)): ω^(ω*2) = ω^(ω+y)[y]
-  // layer=1, array=[[1], [1, yn, 1]]
+  // trioterate (ω^(ω*2)): x{ω^(ω*2)}y = x{ω^(ω+y)}y
+    // for k <= MSI, tria(3,k)=3{ω^(ω+k)}k
+    // ≈10{ω^(ω+k)}k → layer=1, array=[[0],[1,k,1]]
+    // for k > MSI, tria(3,k)≈10{ω^(ω*2)}MSI → layer=1, array=[[0],[1,0,2]]
   P.trioterate = P.tria = P.hwm2 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
-    if (y.eq(MetaNum.ONE)) return x.iter(x);
+    if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     if (y.layer === 0 && y.array.length <= 1) {
       var yn = y.toNumber();
@@ -2822,14 +3282,16 @@
     return new MetaNum(x).inv_trioterate(z);
   };
 
-  // trixxate (ω^(ω^2)): diagonalizes ω^(ω*y) at layer 2
-  // layer=2, array=[[1], [1, yn, 1]]
+  // trixxate (ω^(ω^2)): x{ω^(ω^2)}y=x{ω^(ω*y)}y
+    // for k <= MSI, trix(3,k)=3{ω^(ω*k)}k
+    // ≈10{ω^(ω*k)}k → layer=1, array=[[0],[1,0,k]]
+    // for k > MSI, trix(3,k)≈10{ω^(ω^2)}MSI → layer=1, array=[[0],[1,0,0,1]]
   P.trixxate = P.trix = P.hwp2 = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
-    if (y.eq(MetaNum.ONE)) return x.trioterate(x);
+    if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     if (y.layer === 0 && y.array.length <= 1) {
       var yn = y.toNumber();
@@ -2883,14 +3345,17 @@
     return new MetaNum(x).inv_trixxate(z);
   };
 
-  // aperixxate (ω^(ω^ω)): diagonalizes ω^(ω^y) at layer 3
-  // Repetition count negligible for layer >= 2 (defaults to 1)
+  // aperixxate (ω^(ω^ω)): x{ω^(ω^ω)}y=x{ω^(ω^y)}y, can reach layer 2
+    // for k < maxCol-1, apix(3,k)≈10{ω^(ω^k)}k → layer=1, array=[[0],[1,0,0,...(k zeroes)...,0,1]]
+    // for maxCol-1 <= k <= MSI → layer=2, array=[[0],[1,k]]
+    // for k > MSI, apix(3,k)≈10{ω^(ω^2)}MSI → layer=2, array=[[0],[1,0,1]]
+    // Repetition count negligible for layer >= 2 (defaults to 1)
   P.aperixxate = P.apix = P.hwpw = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
-    if (y.eq(MetaNum.ONE)) return x.trixxate(x);
+    if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     if (y.layer === 0 && y.array.length <= 1) {
       var yn = y.toNumber();
@@ -2944,14 +3409,14 @@
     return new MetaNum(x).inv_aperixxate(z);
   };
 
-  // epsilonate (ε₀ = ω↑↑ω): diagonalizes ω↑↑y
-  // layer varies with y, array=[[1], [1, yn, 1]]
+  // epsilonate (ε₀ = ω↑↑ω): x{ε₀}y=x{ω^ω^...(y ω's)}y
+  // layer varies with y
   P.epsilonate = P.epsl = P.hepsl = function (y) {
     var x = this.clone();
     y = new MetaNum(y);
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
-    if (y.eq(MetaNum.ONE)) return x.aperixxate(x);
+    if (y.eq(MetaNum.ONE)) return x.clone();
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     if (y.layer === 0 && y.array.length <= 1) {
       var yn = y.toNumber();
@@ -3030,7 +3495,8 @@
 
   P.toNumber = function () {
     if (this.sign === -1) return -this.abs().toNumber();
-    if (this.sign === -2) return -this.abs().toNumber();
+    if (this.sign ===  2) return 1 / this.rec().toNumber();
+    if (this.sign === -2) return -1 / this.rec().abs().toNumber();
     if (this.isNaN()) return NaN;
     if (this.isInfinite()) return Infinity;
     if (isSmall(this)) {
@@ -3048,6 +3514,7 @@
     if (this.array.length > 1) return Infinity;
     var r0 = this.array[0];
     if (r0.length === 1) return r0[0];
+    if (r0.length === 2 && r0[1] == 1 && r0[0] < 309) return Math.pow(10,r0[0]);
     return Infinity;
   };
   Q.toNumber = function (x) {
@@ -3611,7 +4078,7 @@
     if (n.eq(3)) return a.pow(b);
     if (n.eq(4)) return a.tetr(b);
     if (n.eq(5)) return a.pent(b);
-    return a.arrow(b, n.sub(1));
+    return MetaNum.arrow(a, n.sub(2), b);
   };
 
   Q.affordGeometricSeries = function (resourcesAvailable, priceStart, priceRatio, currentOwned) {
@@ -4049,6 +4516,60 @@
     if (rowIndex === 0) {
       var rem = s;
 
+      // Parse "1/<expr>" form: reciprocal of <expr>.
+      // For any <expr>, 1/<expr> is stored as sign=2 (or -2) with <expr>'s array.
+      // The approximation rule (n ≈ 10^n for n > TETRATED_MAX_SAFE_INTEGER) means
+      // 1/<expr> ≈ 10^-<expr> for very large <expr>, but the array stays as <expr>'s array.
+      var recipSlashMatch = rem.match(/^1\/(.+)$/);
+      if (recipSlashMatch) {
+        var recipInnerStr = recipSlashMatch[1].trim();
+        var recipInner = MetaNum.fromString(recipInnerStr);
+        var recipResult = recipInner.clone();
+        // Apply reciprocal: 1 ↔ 2, -1 ↔ -2
+        recipResult.sign = recipResult.sign === 1 ? 2 : recipResult.sign === 2 ? 1 : recipResult.sign === -1 ? -2 : -1;
+        // Apply outer negateIt: flip 1 ↔ -1, 2 ↔ -2
+        if (negateIt) {
+          recipResult.sign = recipResult.sign === 1 ? -1 : recipResult.sign === -1 ? 1 : recipResult.sign === 2 ? -2 : 2;
+        }
+        return recipResult.normalize();
+      }
+
+      // Parse "E-<expr>" form: 10^-(<expr>) = 1/(10^<expr>) = reciprocal of E(<expr>).
+      // Approximation rule: when <expr> > TETRATED_MAX_SAFE_INTEGER (= 10^^MSI),
+      // we have 10^<expr> ≈ <expr>, so E-<expr> ≈ 1/<expr> (no extra E level added).
+      // When <expr> ≤ TETRATED_MAX_SAFE_INTEGER, we compute exactly: E-<expr> = 1/E(<expr>).
+      var eDashMatch = rem.match(/^E-(.+)$/);
+      if (eDashMatch) {
+        var eDashInnerStr = eDashMatch[1].trim();
+        var eDashInner = MetaNum.fromString(eDashInnerStr);
+        // Handle negative <expr>: E-<expr> = 10^(-<expr>) = 10^(positive) = LARGE number E(abs(<expr>))
+        if (eDashInner.sign < 0) {
+          var absInner = eDashInner.abs();
+          var ePosResult = MetaNum.pow(MetaNum.TEN, absInner);
+          if (negateIt) ePosResult.sign = ePosResult.sign === 1 ? -1 : 1;
+          return ePosResult.normalize();
+        }
+        var tetrMaxSafe = MetaNum(R.TETRATED_MAX_SAFE_INTEGER);
+        var eDashResult;
+        if (eDashInner.lte(tetrMaxSafe)) {
+          // <expr> ≤ TETRATED_MAX_SAFE_INTEGER: compute E(<expr>) = 10^<expr> exactly,
+          // then take reciprocal (sign=2 with E(<expr>)'s array).
+          var eApplied = MetaNum.pow(MetaNum.TEN, eDashInner);
+          eDashResult = eApplied.clone();
+        } else {
+          // <expr> > TETRATED_MAX_SAFE_INTEGER: approximation 10^<expr> ≈ <expr>,
+          // so E-<expr> ≈ 1/<expr> (sign=2 with <expr>'s array).
+          eDashResult = eDashInner.clone();
+        }
+        // Make it reciprocal (sign 1 → 2)
+        eDashResult.sign = eDashResult.sign === 1 ? 2 : eDashResult.sign === -1 ? -2 : eDashResult.sign;
+        // Apply outer negateIt: flip 2 ↔ -2
+        if (negateIt) {
+          eDashResult.sign = eDashResult.sign === 2 ? -2 : eDashResult.sign === -2 ? 2 : eDashResult.sign;
+        }
+        return eDashResult.normalize();
+      }
+
       var tetrMatch = rem.match(/^(\d+(?:\.\d+)?)\s*\^\^\s*(\d+(?:\.\d+)?)\s*$/);
       if (tetrMatch) {
         var tetrBase = Number(tetrMatch[1]);
@@ -4081,6 +4602,113 @@
           x.sign = negateIt ? -1 : 1;
           x.layer = 0;
           return x.normalize();
+        }
+      }
+
+      // Parse spaced letter-chain notation (round-trip of toString output):
+      //   "M^7 L^8 K^8 ... E^8 10000000000"  finite levels with ^counts
+      //   "GF^2 E^3 123"                     letters + ^counts (last letter gets count)
+      //   "3Aa25 100"                        high finite level (> 22) with base
+      //   "AaAa E^8 100"                     compact ordinal tokens + spaced chain
+      //   "F^9 EE100"                        spaced chain + compact letters + base
+      // Must come before aaMatch so "3Aa25 100" keeps its trailing base value.
+      var chainMatch = rem.match(/^((?:[A-Z][a-z]+)*)((?:(?:[A-Z]+\^\d+|\d+Aa\d+)\s+)+)([A-Z]*)(\d+(?:\.\d+)?)\s*$/);
+      if (chainMatch) {
+        var chainOk = true;
+        var chainFin = {};
+        var chainTokRe = /([A-Z]+)\^(\d+)|(\d+)Aa(\d+)/g;
+        var chainTokM;
+        while ((chainTokM = chainTokRe.exec(chainMatch[2])) !== null) {
+          var cLevel, cCount;
+          if (chainTokM[1] !== undefined) {
+            // "GF^2": every letter counts 1 except the last, which gets ^N
+            var cLetters = chainTokM[1];
+            cCount = parseInt(chainTokM[2], 10);
+            for (var cli = 0; cli < cLetters.length; cli++) {
+              var clLevel = cLetters.charCodeAt(cli) - 68; // E->1, F->2, ...
+              if (clLevel < 1 || clLevel >= MetaNum.maxCols - 1) { chainOk = false; break; }
+              chainFin[clLevel] = (chainFin[clLevel] || 0) + (cli === cLetters.length - 1 ? cCount : 1);
+            }
+            if (!chainOk) break;
+          } else {
+            cLevel = parseInt(chainTokM[4], 10);
+            cCount = parseInt(chainTokM[3], 10);
+            if (cLevel < 1 || cLevel >= MetaNum.maxCols - 1) { chainOk = false; break; }
+            chainFin[cLevel] = (chainFin[cLevel] || 0) + cCount;
+          }
+        }
+        // compact trailing letters (each occurrence counts 1), e.g. "F^9 EE100"
+        var chainCompact = chainMatch[3] || "";
+        for (var cci = 0; cci < chainCompact.length && chainOk; cci++) {
+          var cclLevel = chainCompact.charCodeAt(cci) - 68;
+          if (cclLevel >= 1 && cclLevel < MetaNum.maxCols - 1) {
+            chainFin[cclLevel] = (chainFin[cclLevel] || 0) + 1;
+          }
+        }
+        if (chainOk) {
+          var chainBase = Number(chainMatch[4]);
+          if (!isNaN(chainBase) && isFinite(chainBase)) {
+            x.array[0] = [chainBase];
+            for (var ckey in chainFin) {
+              x.array[0][ckey] = (x.array[0][ckey] || 0) + chainFin[ckey];
+            }
+            // compact ordinal tokens (group 1, e.g. "AaAa") -> ordinal rows,
+            // same row-building logic as the oaMatch handler below
+            var chainOrd = chainMatch[1] || "";
+            var chainOrdRe = /[A-Z][a-z]+/g;
+            var chainOrdM;
+            var chainGroups = [];
+            while ((chainOrdM = chainOrdRe.exec(chainOrd)) !== null) {
+              var ctk = chainOrdM[0];
+              if (chainGroups.length > 0 && chainGroups[chainGroups.length - 1].token === ctk) {
+                chainGroups[chainGroups.length - 1].count++;
+              } else {
+                chainGroups.push({ token: ctk, count: 1 });
+              }
+            }
+            var chainRows = [];
+            for (var cgi = 0; cgi < chainGroups.length; cgi++) {
+              var cg = chainGroups[cgi];
+              var cgUIdx = cg.token.charCodeAt(0) - 64;
+              var cgLower = cg.token.slice(1);
+              var cgIndices = [];
+              for (var cili = 0; cili < cgLower.length; cili++) cgIndices.push(cgLower.charCodeAt(cili) - 97);
+              var cgK = cgIndices.length;
+              var cgAllZero = true;
+              var cgFirstNonZero = -1;
+              for (var cz = 0; cz < cgK; cz++) {
+                if (cgIndices[cz] !== 0) { cgAllZero = false; if (cgFirstNonZero === -1) cgFirstNonZero = cz; }
+              }
+              var cgRow = [cg.count];
+              var cgIsDiag = false;
+              if (cgAllZero) {
+                for (var cz2 = 0; cz2 < cgK; cz2++) cgRow.push(0);
+                cgRow.push(cgUIdx);
+              } else {
+                if (cgIndices[cgK - 1] === 0 && cgFirstNonZero >= 0) cgIsDiag = true;
+                for (var cz3 = cgK - 1; cz3 >= 0; cz3--) cgRow.push(cgIndices[cz3]);
+                cgRow.push(cgUIdx);
+              }
+              chainRows.push({ row: cgRow, isDiag: cgIsDiag, lowerIndices: cgIndices, level: cgUIdx });
+            }
+            chainRows.sort(function (a, b) {
+              if (a.level !== b.level) return a.level - b.level;
+              var cLen = Math.max(a.lowerIndices.length, b.lowerIndices.length);
+              for (var csi = 0; csi < cLen; csi++) {
+                var csa = csi < a.lowerIndices.length ? a.lowerIndices[csi] : 0;
+                var csb = csi < b.lowerIndices.length ? b.lowerIndices[csi] : 0;
+                if (csa !== csb) return csa - csb;
+              }
+              return 0;
+            });
+            x._oaRowData = [];
+            for (var cri = 0; cri < chainRows.length; cri++) {
+              x.array.push(chainRows[cri].row);
+              x._oaRowData.push({ isDiag: chainRows[cri].isDiag });
+            }
+            if (negateIt) x.sign = -1;
+            return x.normalize();
+          }
         }
       }
 
@@ -4260,6 +4888,31 @@
         }
       }
 
+      // Parse scientific notation with extreme exponents (e.g., 1E-1000000, 1E1000000)
+      // that overflow/underflow JS Number
+      var sciExtreme = rem.match(/^([\d.]+)[Ee](-?\d+)\s*$/);
+      if (sciExtreme) {
+        var sciMant = Number(sciExtreme[1]);
+        var sciExp = Number(sciExtreme[2]);
+        if (!isNaN(sciMant) && isFinite(sciMant) && isFinite(sciExp) && sciMant > 0) {
+          var logVal = Math.log10(sciMant) + sciExp;
+          if (logVal < -308) {
+            // Very small: convert to reciprocal (sign=2)
+            x.array[0][0] = -logVal;
+            x.array[0][1] = 1;
+            x.sign = negateIt ? -2 : 2;
+            return x.normalize();
+          } else if (logVal > 308) {
+            // Very large: use E notation
+            x.array[0][0] = logVal;
+            x.array[0][1] = 1;
+            if (negateIt) x.sign = -1;
+            return x.normalize();
+          }
+          // Normal range: fall through to Number() below
+        }
+      }
+
       var num = Number(rem);
       if (!isNaN(num) && isFinite(num)) {
         x.array[0][0] = num;
@@ -4272,396 +4925,66 @@
 
   
   // ==================== BEAF Ordinal Helpers ====================
-  // Build ordinal coefficient array from BEAF args
-  // coeffs[i] = args[i+2] - 1, where:
-  //   coeffs[0] = c-1 = a1-1 (ω^0 = constant term)
-  //   coeffs[1] = d-1 = a2-1 (ω^1 coefficient)
-  //   coeffs[2] = e-1 = a3-1 (ω^2 coefficient)
-  //   coeffs[3] = f-1 = a4-1 (ω^3 coefficient)
-  //   ...
-  // Ordinal level = ...+ω^3*coeffs[3]+ω^2*coeffs[2]+ω*coeffs[1]+coeffs[0]
+  // Build ordinal coefficient array from BEAF args (each arg contributes arg-1):
+  //   BEAF(a,b,c,d,e,f,...) = a{...+ω^3*(f-1)+ω^2*(e-1)+ω*(d-1)+(c-1)}b
+  //   coeffs[0] = c-1 (ω^0 = constant term)
+  //   coeffs[1] = d-1 (ω^1 coefficient)
+  //   coeffs[2] = e-1 (ω^2 coefficient)
+  //   coeffs[3] = f-1 (ω^3 coefficient)
+  // An argument whose value exceeds MSI (or carries ordinal structure) cannot
+  // serve as an exact coefficient: it is reported in hugeArgs and the caller
+  // supremum-collapses it (ω^i*HUGE ≈ ω^(i+1)).
   Q._buildOrdinalCoeffs = function(args) {
     var coeffs = [];
+    var hugeArgs = [];
     for (var i = 2; i < args.length; i++) {
-      coeffs.push(args[i].toNumber() - 1);
-    }
-    return coeffs;
-  };
-
-  // Apply fundamental sequence ONCE to a limit ordinal.
-  //
-  // coeffs: [c0, c1, c2, ...] where coeffs[i] is the coefficient of ω^i
-  // cardinal: the argument to the fundamental sequence
-  //
-  // find the SMALLEST p >= 1 such that c_p > 0 and c_0 ... c_{p-1} are ALL 0.
-  // That's the lowest non-zero ω-power. Then:
-  //   ω^p * q   →   ω^p * (q-1)  +  ω^{p-1} * cardinal
-  Q._toSuccessorOrdinal = function(coeffs, cardinal) {
-    var result = coeffs.slice();
-    while (result.length > 0 && result[result.length - 1] === 0) result.pop();
-    if (result.length === 0) return { coeffs: [0], isLimit: false };
-
-    // Successor ordinal: constant term c0 > 0
-    if ((result[0] || 0) > 0) {
-      return { coeffs: result, isLimit: false };
-    }
-
-    // It's a limit ordinal (c0 = 0). Find p = the SMALLEST index >= 1 with c_p > 0.
-    // (the rightmost / lowest ω-power with non-zero coefficient)
-    var p = 1;
-    while (p < result.length && (result[p] || 0) === 0) p++;
-    if (p >= result.length) {
-      return { coeffs: [0], isLimit: false };
-    }
-
-    var q = result[p]; // coefficient of ω^p
-    // Transform: ω^p*q → ω^p*(q-1) + ω^{p-1}*cardinal
-    result[p] = q - 1;
-    var effCardinal = (p === 1) ? (cardinal - 1) : cardinal;
-    if (p - 1 === 0) {
-      result[0] = (result[0] || 0) + effCardinal;
-    } else {
-      var idx = p - 1;
-      while (result.length <= idx) result.push(0);
-      result[idx] = (result[idx] || 0) + effCardinal;
-    }
-
-    while (result.length > 0 && result[result.length - 1] === 0) result.pop();
-    if (result.length === 0) result = [0];
-
-    var isLimit = true;
-    if ((result[0] || 0) > 0) {
-      isLimit = false;
-    } else {
-      var hasOmegaTerm = false;
-      for (var i = 1; i < result.length; i++) {
-        if ((result[i] || 0) > 0) {
-          hasOmegaTerm = true;
-          break;
-        }
+      var arg = args[i];
+      var eff = Infinity;
+      if (arg.layer === 0 && arg.array.length === 1) {
+        eff = metaFiniteCount(arg);
       }
-      isLimit = hasOmegaTerm;
-    }
-
-    return { coeffs: result, isLimit: isLimit };
-  };
-
-  // Convert ordinal coefficients to a row representation
-  // coeffs: [c0, c1, c2, ..., cp] where cp != 0
-  // Row format: [count, c0, c1, ..., c_{p-1}, cp]
-  //   which represents count * (ω^p*cp + ω^{p-1}*c_{p-1} + ... + ω^1*c1 + c0)
-  // count: the number of times this ordinal-level operation is repeated (i.e., b-2 in BEAF)
-  Q._ordinalToRow = function(coeffs, count) {
-    if (coeffs.length === 0) return null;
-
-    // Find the highest non-zero coefficient
-    var maxIdx = coeffs.length - 1;
-    while (maxIdx >= 0 && (coeffs[maxIdx] || 0) === 0) maxIdx--;
-    if (maxIdx < 0) return null;
-
-    var row = [count];
-    // Add coefficients from c0 (ω^0) up to c_{maxIdx-1}
-    for (var i = 0; i < maxIdx; i++) {
-      row.push(coeffs[i] || 0);
-    }
-    // Add the highest coefficient (diag)
-    row.push(coeffs[maxIdx]);
-    return row;
-  };
-
-  // Decrement a successor ordinal by 1 (subtract 1 from constant term)
-  Q._decrementOrdinal = function(coeffs) {
-    var result = coeffs.slice();
-    while (result.length > 0 && result[result.length - 1] === 0) result.pop();
-    if (result.length === 0) return [0];
-
-    if ((result[0] || 0) > 0) {
-      result[0]--;
-    } else {
-      // This should not be called on a limit ordinal, but handle it just in case
-      // Find lowest non-zero coefficient and borrow
-      var idx = 1;
-      while (idx < result.length && (result[idx] || 0) === 0) idx++;
-      if (idx < result.length) {
-        result[idx]--;
-        for (var i = 0; i < idx; i++) {
-          result[i] = 0; // These would be filled in during subsequent expansion
-        }
-      }
-    }
-
-    while (result.length > 0 && result[result.length - 1] === 0) result.pop();
-    if (result.length === 0) return [0];
-    return result;
-  };
-
-  // Compare two ordinal coefficient arrays: returns -1 if a<b, 0 if equal, 1 if a>b
-  Q._compareOrdinals = function(a, b) {
-    var maxIdx = Math.max(a.length, b.length) - 1;
-    for (var i = maxIdx; i >= 0; i--) {
-      var av = (i < a.length) ? (a[i] || 0) : 0;
-      var bv = (i < b.length) ? (b[i] || 0) : 0;
-      if (av !== bv) return av - bv;
-    }
-    return 0;
-  };
-
-  // Generate ordinal rows for BEAF/Hyperoperation A(m, n) using the exact algorithm
-  //
-  // 1. If A is a successor ordinal (c0 > 0), emit row with count = n-1 for level A-1,
-  //    then descend with tierCount = n-2.
-  // 2. If A is a limit ordinal, apply fundamental sequence repeatedly until a successor 
-  //    ordinal B is reached. Then proceed as (1) with B.
-  // 3. For each subsequent tier (count = n-2, n-3, ...), repeat the full descent from
-  //    B again, but with count set to the current tier value.
-  //
-  // For example, BEAF(5,5,1,1,2):
-  //   5(ω²)5
-  //   →5(ω*4+4) 4times 5                       // Step 1, count=4, max ordinal=ω*4+4
-  //   →5(ω*4+4) 3times 5(ω*4+3) 3times …… 5(ω+1) 3times 5(ω) 3times 5(ω)5 // Step 2, count=3, descending levels
-  //   Finally: 5(ω)5 = base row
-  //
-  // So rows are:
-  //   [3, 4, 4],[3, 3, 4],...,[3, 0, 1],[3, 0, 1]       (cascade, count=3)
-  //
-  // base: m from BEAF, cardinal: n from BEAF (b in the function)
-  // Generate ordinal rows for a given ordinal level (coeffs) with base m and cardinal n.
-  // Returns rows sorted from smallest to largest ordinal.
-  // Each row has format: [count, c0, c1, ..., c_{p-1}, cp]
-  // where count = n-2 for all rows (the top row is excluded).
-  //
-  // For ordinal A with base m and cardinal n:
-  // - rows have count = n-2.
-  // - Rows are sorted from smallest to largest ordinal.
-  // - Includes all limit ordinals in the expansion.
-  //
-  // BEAF(5,5,1,1,2) has ordinal ω², base=5, cardinal=5.
-  //   topSuccessor = ω*4+4 (after FS from ω²)
-  //   count = 5-2 = 3
-  //   Rows: [3,0,1], [3,1,1], [3,2,1], [3,3,1], [3,4,1],  (ω, ω+1, ω+2, ω+3, ω+4)
-  //         [3,0,2], [3,1,2], [3,2,2], [3,3,2], [3,4,2],  (ω*2, ω*2+1, ..., ω*2+4)
-  //         [3,0,3], [3,1,3], [3,2,3], [3,3,3], [3,4,3],  (ω*3, ω*3+1, ..., ω*3+4)
-  //         [3,0,4], [3,1,4], [3,2,4], [3,3,4], [3,4,4]   (ω*4, ω*4+1, ..., ω*4+4)
-
-  Q._generateOrdinalRows = function(coeffs, base, cardinal, maxRows) {
-    var rows = [];
-    var m = base;
-    var n = cardinal;
-    
-    function compareOrd(a, b) {
-      var maxLen = Math.max(a.length, b.length);
-      for (var i = maxLen - 1; i >= 0; i--) {
-        var va = (i < a.length) ? (a[i] || 0) : 0;
-        var vb = (i < b.length) ? (b[i] || 0) : 0;
-        if (va < vb) return -1;
-        if (va > vb) return 1;
-      }
-      return 0;
-    }
-    
-    function addOrd(a, b) {
-      if (!b || b.length === 0 || (b.length === 1 && b[0] === 0)) return a.slice();
-      if (!a || a.length === 0 || (a.length === 1 && a[0] === 0)) return b.slice();
-      var result = a.slice();
-      var k = 0;
-      while (k < result.length && (result[k] || 0) === 0) k++;
-      if (k >= result.length) {
-        return b.slice();
-      } else if (k === 0) {
-        result[0] = (result[0] || 0) + (b[0] || 0);
-        for (var i = 1; i < b.length; i++) {
-          result[i] = (result[i] || 0) + (b[i] || 0);
-        }
+      if (!(eff <= MAX_SAFE_INTEGER)) {
+        hugeArgs.push(arg.clone());
+        coeffs.push(Infinity);
       } else {
-        result[k] = 0;
-        result = result.slice(0, k);
-        for (var i = 0; i < b.length; i++) {
-          result.push(b[i] || 0);
-        }
+        coeffs.push(Math.max(0, Math.floor(eff) - 1));
       }
-      while (result.length > 0 && result[result.length - 1] === 0) result.pop();
-      return result;
     }
-    
-    function isZero(ord) {
-      if (!ord || ord.length === 0) return true;
-      for (var i = 0; i < ord.length; i++) {
-        if ((ord[i] || 0) !== 0) return false;
-      }
-      return true;
-    }
-    
-    function buildRow(ord, count) {
-      var maxIdx = ord.length - 1;
-      while (maxIdx >= 0 && (ord[maxIdx] || 0) === 0) maxIdx--;
-      if (maxIdx < 0) return null;
-      var row = [count];
-      for (var i = 0; i <= maxIdx - 1; i++) row.push(ord[i] || 0);
-      row.push(ord[maxIdx]);
-      return row;
-    }
-    
-    // Enumerate all ordinals below ω^k with coefficients < n
-    function enumBelowOmegaK(k, n) {
-      if (k === 0) {
-        return [[0]];
-      }
-      if (k === 1) {
-        var result = [];
-        for (var i = 0; i < n; i++) {
-          result.push([i]);
-        }
-        return result;
-      }
-      var result = [];
-      for (var a = 0; a < n; a++) {
-        var sub = enumBelowOmegaK(k - 1, n);
-        for (var i = 0; i < sub.length; i++) {
-          var combined = sub[i].slice();
-          while (combined.length < k) combined.push(0);
-          combined[k-1] = a;
-          result.push(combined);
-        }
-      }
-      return result;
-    }
-    
-    // Enumerate all ordinals below a given ordinal
-    function enumBelow(alpha, n) {
-      if (isZero(alpha)) return [];
-      
-      if ((alpha[0] || 0) > 0) {
-        var pred = alpha.slice();
-        pred[0]--;
-        while (pred.length > 0 && pred[pred.length - 1] === 0) pred.pop();
-        if (pred.length === 0) pred = [0];
-        var result = enumBelow(pred, n);
-        result.push(pred.slice());
-        return result;
-      }
-      
-      var k = alpha.length - 1;
-      while (k >= 0 && (alpha[k] || 0) === 0) k--;
-      if (k < 0) return [];
-      
-      var ck = alpha[k] || 0;
-      var rest = alpha.slice(0, k);
-      while (rest.length > 0 && rest[rest.length - 1] === 0) rest.pop();
-      
-      var result = [];
-      
-      for (var j = 0; j < ck; j++) {
-        var sub = enumBelowOmegaK(k, n);
-        for (var i = 0; i < sub.length; i++) {
-          var combined = sub[i].slice();
-          while (combined.length <= k) combined.push(0);
-          combined[k] = j;
-          result.push(combined);
-        }
-      }
-      
-      if (!isZero(rest)) {
-        var restSub = enumBelow(rest, n);
-        for (var i = 0; i < restSub.length; i++) {
-          var combined = restSub[i].slice();
-          while (combined.length <= k) combined.push(0);
-          combined[k] = ck;
-          result.push(combined);
-        }
-      }
-      
-      return result;
-    }
-    
-    var count = n - 2;
-    if (count < 1) return rows;
-    
-    var allOrdinals = enumBelow(coeffs, n);
-    
-    var seen = {};
-    var uniqueOrdinals = [];
-    for (var i = 0; i < allOrdinals.length; i++) {
-      var ord = allOrdinals[i];
-      if (isZero(ord)) continue;
-
-      // Normalize: remove trailing zeros
-      var normalized = ord.slice();
-      while (normalized.length > 0 && normalized[normalized.length - 1] === 0) {
-        normalized.pop();
-      }
-
-      // Skip ordinals below ω (finite ordinals: only constant term, length <= 1)
-      if (normalized.length <= 1) continue;
-
-      var key = normalized.join(',');
-      if (seen[key]) continue;
-      seen[key] = true;
-      uniqueOrdinals.push(normalized);
-    }
-    
-    uniqueOrdinals.sort(function(a, b) {
-      return compareOrd(a, b);
-    });
-    
-    var allRows = [];
-    for (var i = 0; i < uniqueOrdinals.length; i++) {
-      var row = buildRow(uniqueOrdinals[i], count);
-      if (row) allRows.push(row);
-    }
-    
-    var maxOrdinalRows = maxRows - 1;
-    if (allRows.length > maxOrdinalRows) {
-      allRows = allRows.slice(allRows.length - maxOrdinalRows);
-    }
-    
-    for (var i = 0; i < allRows.length; i++) {
-      rows.push(allRows[i]);
-    }
-    
-    return rows;
+    return { coeffs: coeffs, hugeArgs: hugeArgs };
   };
 
-  // Ordinal BEAF computation for 3+ arguments
-  // BEAF(m, n, a1, a2, a3, a4, ...)
-  // Ordinal level: ...+ω^3*(a4-1)+ω^2*(a3-1)+ω*(a2-1)+(a1-1)
-  // coeffs passed in are: [a1-1, a2-1, a3-1, a4-1, ...]
-  Q._beafOrdinal = function(a, b, coeffs) {
-    var aNum = a.toNumber();
-    var bNum = b.toNumber();
-
-    // For exactly 3 arguments: {m,n,c} (coeffs.length = 1):
-    //   c < 3 means finite hyperop (1=multiplication, 2=exponentiation)
-    //   c >= 3 means tetration+ which is already properly handled by arrow()
-    if (coeffs.length === 1) {
-      return a.arrow(coeffs[0] + 1)(b);
+  // Ordinal BEAF computation for 4+ arguments:
+  //   BEAF(a,b,c,d,...) = a{...+ω*d+c}b via the unified ordinal engine.
+  // Huge coefficients (> MSI / ordinal args) supremum-collapse:
+  //   ω^i*HUGE ≈ ω^(i+1) with all lower coefficients swallowed, e.g.
+  //   4{ω*5+X}2 = 4{ω*6}X (X huge) → X plus one ω*6 row;
+  //   4{ω*X+3}2 = 4{ω^2}X        → X plus one ω^2 row.
+  // The result anchors at the largest operand (the huge argument's value).
+  Q._beafOrdinal = function(a, b, coeffs, hugeArgs) {
+    a = new MetaNum(a);
+    b = new MetaNum(b);
+    var iHuge = -1;
+    for (var i = coeffs.length - 1; i >= 0; i--) {
+      if (!(coeffs[i] <= MAX_SAFE_INTEGER)) { iHuge = i; break; }
     }
-
-    // Base row = innermost lowest-level (ω) result, per user: 5(ω)5 = 5 arrow 5
-    // Use arrow with level exactly aNum to guarantee base row = a arrow a of level a (tetrate).
-    // For a>maxArrow, use maxArrow+1 which triggers ordinal path with array length > 1.
-    // But we want base row to be a pure array[0] with enough entries (length >=4).
-    // Arrow level aNum gives 5 arrow 5.
-    var baseArrowLevel = Math.max(aNum, 3);
-    var baseResult = a.arrow(baseArrowLevel)(b);
-
-    // Generate ordinal rows (sorted largest to smallest by generator)
-    var maxRows = MetaNum.maxRows; // 100
-    // _generateOrdinalRows(coeffs, base, cardinal, maxRows)
-    //   where base = aNum (m) for FS, cardinal = bNum (n) for FS.
-    var rows = Q._generateOrdinalRows(coeffs, aNum, bNum, maxRows);
-
-    // Combine base result with ordinal rows. IMPORTANT: do NOT normalize because
-    // normalize() re-sorts the array and destroys our largest-first ordering.
-    // Instead, set array directly to [baseResult.array[0]].concat(rows).
-    var result = baseResult.clone();
-    result.array = [baseResult.array[0].slice()];
-    for (var i = 0; i < rows.length; i++) {
-      result.array.push(rows[i]);
+    if (iHuge < 0) {
+      // no huge coefficients: exact engine evaluation
+      var cf = trimCoeffs(coeffs.map(function (c) { return Math.max(0, Math.floor(c)); }));
+      if (cf.length === 0) return a.pow(b); // level 0 → a^b (b arg is the level-1 op)
+      if (!coeffsHaveOmegaPart(cf)) return a.arrow(cf[0])(b); // finite level c
+      return Q._ordinalHyperop(a, b, cf);
     }
-    if (result.array.length > 1) result.layer = 0;
-    return result;
+    // collapse at the highest huge coefficient: coeffs[iHuge+1] += 1, zero the rest below
+    var cf = coeffs.slice();
+    for (var j = 0; j <= iHuge; j++) cf[j] = 0;
+    while (cf.length <= iHuge + 1) cf.push(0);
+    cf[iHuge + 1] = (cf[iHuge + 1] || 0) + 1;
+    cf = trimCoeffs(cf);
+    // anchor: the largest operand dominates (right-to-left composition)
+    var anchor = a.max(b);
+    for (var j = 0; j < (hugeArgs || []).length; j++) anchor = anchor.max(hugeArgs[j]);
+    return Q._applyOrdinalRows(anchor, cf, 1);
   };
-
 
   // ==================== BEAF Array Notation ====================
   // Bowers' Exploding Array Function: https://googology.fandom.com/wiki/Array_notation
@@ -4694,9 +5017,16 @@
       var c = args[2];
       if (c.isint() && c.sign === 1) {
         var cNum = c.toNumber();
-        if (isFinite(cNum) && cNum <= MetaNum.maxArrow) {
-          return args[0].arrow(c)(args[1]);
+        if (isFinite(cNum)) {
+          // any finite integer level: arrow() covers small, compact ordinal-row
+          // (level ≥ maxCols) and the ≥ maxArrow approximation branches
+          return args[0].arrow(cNum)(args[1]);
         }
+      }
+      // c is an ordinal/huge MetaNum (unrepresentable finite level): the level
+      // diagonalizes past every finite level → approximate with the ω level
+      if (c.array.length > 1 || c.layer > 0) {
+        return Q._ordinalHyperop(args[0], args[1], [0, 1]);
       }
       // Fall through to recursive computation for non-integer c
     }
@@ -4706,8 +5036,8 @@
 
     // 4+ arguments: use ordinal arithmetic instead of recursion
     if (len >= 4) {
-      var coeffs = Q._buildOrdinalCoeffs(args);
-      return Q._beafOrdinal(args[0], args[1], coeffs);
+      var coeffsInfo = Q._buildOrdinalCoeffs(args);
+      return Q._beafOrdinal(args[0], args[1], coeffsInfo.coeffs, coeffsInfo.hugeArgs);
     }
 
     // Rule 4: {a, b, 1, ..., 1, c, d, ...}
@@ -4785,12 +5115,13 @@
           }
           if (allNonNegative) {
             var a = decimalPlaces(x.array[0][0], 6);
-            // Reconstruct BEAF: {a, ?, c, d+1, e+1, ...} from ordinal [1, c, d, e, ..., 1]
+            // Reconstruct BEAF: {a, ?, c, d, e, ...} from ordinal row [1, c, d, e, ..., 1]
+            // (raw coefficient convention: BEAF(a,b,c,d,...) = a{...+ω*d+c}b)
             var beafParts = [a, '?'];
-            for (var i = 0; i < vals.length - 1; i++) {
-              beafParts.push(String(vals[i] + 1));
+            for (var i = 0; i < vals.length; i++) {
+              beafParts.push(String(vals[i]));
             }
-            beafParts.push(String(vals[vals.length - 1] + 1));
+            beafParts.push(String(diag));
             return '{' + beafParts.join(', ') + '}';
           }
         }

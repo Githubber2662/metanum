@@ -7,18 +7,20 @@ let FORMAT_DEBUG = 0
 
 // ─── Configuration Options ────────────────────────────────────────
 const FORMAT_OPTIONS = {
-  smallNotationUseE: true,   // 1. 小数值是否用E-表示（true=aE-b，false=⁻¹）
+  smallNotationUseE: true,   // 1. 小数值是否用E-表示（true=αE-β，false=⁻¹）
   smallNotationThreshold: 4, // 2. 小数值表示阈值（=n则小于10^-n的数采用小数值处理）
   decimalPlaces: 3,          // 3. 常规数字小数位数（=0为1，=1为1.0，=2为1.00等）
   decimalThreshold: 3,       // 4. 常规数字小数阈值（=n则数值>=10^n时不显示小数部分）
   useCommas: true,           // 5. 常规数字是否显示逗号（true/false）
-  sciThreshold: 9,           // 6. 科学计数法阈值（=n则数值>=10^n开始用科学计数法，同样对aEb中b的数值生效）
-  sciSignificantDigits: 3,   // 7. 科学计数法有效位数（=n则aEb的a的小数部分保留n位）
-  sciDecimalThreshold: 3,    // 8. 科学计数法小数阈值（=n则aEb的b>=10^n时不显示小数部分）
-  repeatLetterThreshold: 3,  // 9. 重复字母阈值（=n则出现n个重复的字母时用下一个字母计数法，n<2时以2计算）
-  singleLetterDigits: 3,     // 10. 单字母计数法有效位数（F-Z的小数位数）
-  multiLetterDigits: 3,      // 11. 多字母计数法有效位数（Aa及以上的小数位数）
-  multiLetterRepeatThreshold: 3 // 12. 多字母组合重复阈值（=n则出现n个重复的多字母组合时用下一个字母计数法，n<2时以2计算）
+  sciThreshold: 9,           // 6. 科学计数法阈值（=n则数值>=10^n开始用科学计数法，同样对αEβ中β的数值生效）
+  sciSignificantDigits: 3,   // 7. 科学计数法有效位数（=n则αEβ的α的小数部分保留n位）
+  sciDecimalThreshold: 3,    // 8. 科学计数法小数阈值（=n则αEβ的β>=10^n时不显示小数部分）
+  singleLetterDigits: 3,     // 9. 单字母计数法有效位数（αFβ,αGβ...αZβ中α的小数位数）
+  repeatLetterThreshold: 3,  // 10. 单字母重复阈值（=n则出现n个重复的单字母时用下一个字母计数法，n<2时以2计算）
+  multiLetterDigits: 3,      // 11. 多字母计数法有效位数（及以上的α的小数位数）
+  multiLetterRepeatThreshold: 3, // 12. 多字母组合重复阈值（=n则出现n个重复的多字母组合时用下一个字母计数法，n<2时以2计算）
+  multiLetterLimit: 4,        // 13. 多字母组合最大位数（=n则多字母组合的长度不超过n，超过则切换下一种计数法，n<2时以2计算）
+  epsilonSignificantDigits: 6  // 14. epsilon有效位数（=n则αεβ中α的小数位数为n）
 }
 
 // ─── Utility Functions ───────────────────────────────────────────
@@ -354,7 +356,7 @@ function format(num, precision=2, small=false) {
     let r0 = array[0]
 
     // Basic edge cases
-    if (num.abs().lt(1e-308)) return (0).toFixed(precision)
+    if (num.sign !== 2 && num.sign !== -2 && num.abs().lt(1e-308)) return (0).toFixed(precision)
     if (num.sign < 0) return "-" + format(num.neg(), precision, small)
     if (num.isInfinite()) return "Infinity"
 
@@ -362,6 +364,29 @@ function format(num, precision=2, small=false) {
     let smallThreshold = Math.pow(10, -FORMAT_OPTIONS.smallNotationThreshold)
     if (num.lt(smallThreshold)) {
         if (FORMAT_OPTIONS.smallNotationUseE) {
+            // Handle reciprocal values (sign=2/-2) that underflow to 0 in double precision
+            if (num.sign === 2 || num.sign === -2) {
+                var recipFmt = num.clone()
+                recipFmt.sign = recipFmt.sign === 2 ? 1 : -1
+                var prefix = num.sign === -2 ? "-" : ""
+                // Compute magnitude (log10 of reciprocal)
+                var mag = recipFmt.log10()
+                // Tier 1: mag is a simple number → αE-β format
+                if (mag.array.length === 1 && mag.array[0].length <= 2) {
+                    var magNum = mag.toNumber()
+                    if (isFinite(magNum) && magNum > 0) {
+                        var frac = magNum - Math.floor(magNum)
+                        var mant = Math.pow(10, frac)
+                        var expPart = Math.floor(magNum)
+                        if (mant < 1) { mant *= 10; expPart -= 1 }
+                        if (mant >= 9.999999999999999) { mant = 1; expPart += 1 }
+                        return prefix + regularFormat(mant, sciPrecision) + "E-" + commaFormat(expPart)
+                    }
+                }
+                // Tier 2: mag is large → E-<formatted mag (log10 of reciprocal)>
+                var magStr = format(mag, precision, small)
+                return prefix + "E-" + magStr
+            }
             // Format as aE-b (e.g., 0.0000000001 → 1.000E-10)
             let nVal = num.toNumber()
             if (nVal > 0 && isFinite(nVal)) {
@@ -374,11 +399,6 @@ function format(num, precision=2, small=false) {
                 return regularFormat(m, sciPrecision) + "E-" + commaFormat(e)
             }
             // Fallback for non-simple values: use ⁻¹ notation
-            if (num.sign === 2 || num.sign === -2) {
-                var recipSmall = num.clone()
-                recipSmall.sign = recipSmall.sign === 2 ? 1 : -1
-                return format(recipSmall, precision, small) + "⁻¹"
-            }
             if (num.layer === 0 && num.array.length === 1 && num.array[0].length === 1) {
                 var val = num.array[0][0]
                 if (val > 0) {
@@ -440,44 +460,12 @@ function format(num, precision=2, small=false) {
     }
 
     // ── r0-only: scientific notation, E-Z range ──
-
-    // Scientific notation: sciThreshold ~ 1F5 (10^^5)
-    let sciThresholdVal = Math.pow(10, FORMAT_OPTIONS.sciThreshold)
-    // Only use scientific notation for E-level or simple numbers (no F or higher)
     let maxLevel = 0
     for (let i = 1; i < r0.length; i++) {
         if (r0[i] > 0) maxLevel = i
     }
-    if (num.lt("10^^5") && maxLevel <= 1) {
-        // r0[1] is the E count
-        let rep = (r0[1] || 0) - 1
-        let base = r0[0]
-        if (base >= sciThresholdVal) {
-            base = Math.log10(base)
-            rep += 1
-        }
-        let m = Math.pow(10, base - Math.floor(base))
-        let e = Math.floor(base)
-        // sciDecimalThreshold: if exponent >= 10^n, don't show decimal part
-        let p = sciPrecision
-        if (FORMAT_OPTIONS.sciDecimalThreshold > 0 && e >= Math.pow(10, FORMAT_OPTIONS.sciDecimalThreshold)) {
-            p = 0
-        }
-        if (rep <= 0) {
-            return regularFormat(m, p) + "E" + e
-        }
-        // Check repeatLetterThreshold for E notation
-        let effThreshold = Math.max(2, FORMAT_OPTIONS.repeatLetterThreshold)
-        if (rep < effThreshold) {
-            return "E".repeat(rep) + regularFormat(m, p) + "E" + e
-        }
-        // Convert to F: E^n(x) → F(n+1), rep is E count before the base
-        return regularFormat(m, singlePrecision) + "F" + commaFormat(rep + 2)
-    }
 
-    // Use metaPolarize for F-Z range
-    // ── Handle r0-only with highest >= 23: convert to Aa notation ──
-    // This matches the toString() formatFiniteOps logic for ω-level operations
+    // ── Handle r0-only with maxLevel >= 23: convert to Aa notation ──
     if (maxLevel >= 23) {
         let coeff = r0[maxLevel]
         let pow9 = 9
@@ -500,80 +488,10 @@ function format(num, precision=2, small=false) {
         return regularFormat(coeffVal, multiPrecision) + "Aa" + commaFormat(level)
     }
 
-    let pol = metaPolarize(r0.slice(0), num)
-    let h = pol.height
-    let rep = pol.repeat || 1
-    let top = pol.top
-
-    if (FORMAT_DEBUG >= 1) console.log("format: pol=", JSON.stringify(pol), "h=", h, "rep=", rep)
-
-    // Effective threshold: at least 2
-    let effThreshold = Math.max(2, FORMAT_OPTIONS.repeatLetterThreshold)
-
-    if (h <= 1) {
-        // E level (scientific notation)
-        return regularFormat(pol.bottom, sciPrecision) + "E" + commaFormat(top)
-    }
-
-    // Helper: format a top argument — use sci notation if >= sciThreshold, else comma
-    function formatTopArg(t) {
-        if (t >= Math.pow(10, FORMAT_OPTIONS.sciThreshold)) {
-            let logT = Math.log10(t)
-            let m = Math.pow(10, logT - Math.floor(logT))
-            let e = Math.floor(logT)
-            return regularFormat(m, sciPrecision) + "E" + commaFormat(e)
-        }
-        return commaFormat(t)
-    }
-
-    // Helper: format bottom mantissa, omitting it when it's ~1.0 and top uses sci notation
-    function formatBottom(bottom, top, prec) {
-        // Omit leading 1.000 when bottom is ~1.0 and top is large enough to use sci notation
-        if (bottom >= 0.999999 && bottom <= 1.000001 && top >= Math.pow(10, FORMAT_OPTIONS.sciThreshold)) {
-            return ""
-        }
-        return regularFormat(bottom, prec)
-    }
-
-    // Handle repeated letters
-    if (rep > 1) {
-        if (rep < effThreshold) {
-            // Display repeated letters: α[letter]^n β
-            let letter = letterName(h)
-            return formatBottom(pol.bottom, top, singlePrecision) + letter.repeat(rep) + formatTopArg(top)
-        } else {
-            // Convert to next level: E^n x → F(x+n), F^n x → G(arg), etc.
-            let newH = h + 1
-            let newTop
-            if (h === 1) {
-                // E^n x → F(log10(x) + n + 1), E^n 10 = F(n+1)
-                newTop = rep + 1
-            } else {
-                // F^n(arg) → G(n), G^n(arg) → H(n), etc.
-                // rep already includes the climbing adjustments
-                newTop = rep
-            }
-            // If newH > 22, go to multi-letter range (Aa, Ab, ...)
-            if (newH > 22) {
-                let letter = letterName(newH)
-                return formatBottom(pol.bottom, newTop, multiPrecision) + letter + formatTopArg(newTop)
-            }
-            let newLetter = letterName(newH)
-            return formatBottom(pol.bottom, newTop, singlePrecision) + newLetter + formatTopArg(newTop)
-        }
-    }
-
-    if (h <= 22) {
-        // Single-letter range (F through Z)
-        let letter = letterName(h)
-        return formatBottom(pol.bottom, top, singlePrecision) + letter + formatTopArg(top)
-    }
-
-    // Multi-letter range (Aa and beyond, h >= 23)
-    // This shouldn't normally happen for r0-only values, but handle it
-    let letter = letterName(Math.max(h, 23))
-    let bottomVal = Math.log10(Math.max(pol.bottom, 1)) + top
-    return regularFormat(bottomVal, multiPrecision) + letter + commaFormat(Math.max(h, 23))
+    // ── All other r0-only cases: use the recursive chain builder ──
+    // This handles plain numbers, E-level, F-level, ..., Z-level (maxLevel 0-22)
+    // including multi-letter chains like GE700, FE400, GF800, GG900.
+    return formatR0AsChain(r0.slice(0), sciPrecision)
 }
 
 // ─── Format with Layer (symbol notation) ─────────────────────────
@@ -604,6 +522,21 @@ function formatLayer(num, precision, precision2, precision3, precision4) {
         }
     }
 
+    // For layers beyond the explicit symbols, use the ε format: αεβ
+    // ε represents exponent tower layers of ω: αεβ ~ f_ω^ω^...^ω(β ω's)_(α)
+    // This check must come before the compact !Aa form, otherwise ε layers
+    // get mis-rendered as "Aa..." (e.g. 1ε500 → "1.000Aa10")
+    if (num.layer > SYMBOLS.length) {
+        if (canCompact && compactBase >= 2 && Math.floor(compactBase) === compactBase) {
+            // Compact Aa form at ε layers folds into one more ε level:
+            // layer n + Aa-form ≡ ε(n+1) with mantissa 10^frac(compactBase)
+            let bottom = Math.pow(10, compactBase - Math.floor(compactBase))
+            return regularFormat(bottom, precision4) + "ε" + commaFormat(num.layer + 1)
+        }
+        let innerStr = format(inner, precision, false)
+        return innerStr + "ε" + commaFormat(num.layer)
+    }
+
     if (canCompact && compactBase >= 2) {
         let bottom = Math.pow(10, compactBase - Math.floor(compactBase))
         let top = Math.floor(compactBase)
@@ -613,131 +546,145 @@ function formatLayer(num, precision, precision2, precision3, precision4) {
         }
     }
 
-    // For layers beyond the explicit symbols, use the ε format: αεβ
-    // ε represents exponent tower layers of ω: αεβ ~ f_ω^ω^...^ω(β ω's)_(α)
-    if (num.layer > SYMBOLS.length) {
-        let innerStr = format(inner, precision, false)
-        return innerStr + "ε" + commaFormat(num.layer)
-    }
-
     // For !, @, #, $, %, &, ~, <, >, ? symbols: prefix the symbol
     let innerStr = format(inner, precision, false)
     return sym + innerStr
 }
 
-// ─── Format r0 as Chain ──────────────────────────────────────────
-// Formats r0 = [base, e, f, g, ...] as a chained representation like GF7.6E12
-// The chain represents: highest-level → ... → F-level → E-level → base
-function formatR0AsChain(r0, precision) {
-    if (r0.length === 1) {
-        let val = r0[0]
-        if (val >= Math.pow(10, FORMAT_OPTIONS.sciThreshold)) {
-            let logVal = Math.log10(val)
-            let mantissa = Math.pow(10, logVal - Math.floor(logVal))
-            let exponent = Math.floor(logVal)
-            return regularFormat(mantissa, precision) + "E" + commaFormat(exponent)
-        }
-        return regularFormat(val, precision)
+// ─── Format r0 Argument (plain number) ───────────────────────────
+// Formats a plain numeric argument as either a plain number or αEβ notation.
+// The mantissa α is always shown (even when 1.000).
+function formatR0Arg(value, precision) {
+    if (!isFinite(value) || isNaN(value)) return "NaN"
+    if (value < Math.pow(10, FORMAT_OPTIONS.sciThreshold)) {
+        // Small argument: use comma format (integer, no decimals)
+        return commaFormat(value)
     }
-    
-    let base = r0[0]
-    
-    // Find the highest non-zero level
+    let logVal = Math.log10(value)
+    let m = Math.pow(10, logVal - Math.floor(logVal))
+    let e = Math.floor(logVal)
+    // Normalize mantissa into [1, 10)
+    if (m < 1) { m *= 10; e -= 1 }
+    if (m >= 9.999999999999999) { m = 1; e += 1 }
+    // Always show mantissa (αEβ format, e.g. 1.000E700)
+    return regularFormat(m, precision) + "E" + commaFormat(e)
+}
+
+// ─── Format r0 as Chain ────────────────────────────────────────
+// Formats r0 = [base, e, f, g, ...] as a dlsdl letter-notation chain.
+// Format pattern: outerLetters + α + lastLetter + β
+//   where α = 10^(base - floor(base)), β = floor(base) formatted as number or αEβ
+//   e.g. EE200 → "E1.000E200", F300 → "1.000F300", FE400 → "F1.000E400"
+function formatR0AsChain(r0, precision) {
+    if (r0.length === 0) r0 = [0]
+
+    // Find maxLevel (highest non-zero index in r0[1..])
     let maxLevel = 0
     for (let i = r0.length - 1; i >= 1; i--) {
-        if (r0[i] > 0) {
-            maxLevel = i
-            break
+        if (r0[i] > 0) { maxLevel = i; break }
+    }
+
+    if (maxLevel === 0) {
+        return formatR0Arg(r0[0], precision)
+    }
+
+    let count = r0[maxLevel]
+    let effThreshold = Math.max(2, FORMAT_OPTIONS.repeatLetterThreshold)
+
+    if (count <= effThreshold) {
+        // Non-collapse: peel off one letter at maxLevel, recurse on inner
+        let innerR0 = r0.slice(0)
+        innerR0[maxLevel] = count - 1
+        if (innerR0[maxLevel] === 0) {
+            innerR0 = innerR0.slice(0, maxLevel)
+        }
+        let innerStr = formatR0AsChain(innerR0, precision)
+
+        // Check if innerStr already has letters (meaning deeper operations exist)
+        let hasLetter = /[A-Z]/.test(innerStr)
+
+        if (!hasLetter) {
+            // innerStr is a plain number: this is the innermost operation
+            // Format: α + letterName(maxLevel) + innerStr
+            let base = r0[0]
+            let alpha = Math.pow(10, base - Math.floor(base))
+            if (alpha < 1) alpha *= 10
+            let alphaStr = regularFormat(alpha, precision)
+            return alphaStr + letterName(maxLevel) + innerStr
+        } else {
+            // innerStr already has α and letters: just prepend the outer letter
+            return letterName(maxLevel) + innerStr
         }
     }
-    
-    // Special case: only E level (e > 0, no higher levels)
-    // r0 = [base, e] means E^e(base) = 10^(10^(...(10^base)...)) with e 10s
-    // For display purposes:
-    //   e=1: format as 1.000E{base} (10^base)
-    //   e>=2 but small: treat as F/G levels
-    //   e large (>= sciThreshold): format as F{e} (F-level with e as arg)
-    //   base is negligible compared to huge e
-    if (maxLevel === 1) {
-        let e = r0[1] || 0
-        if (e === 1) {
-            return regularFormat(1, precision) + "E" + commaFormat(base)
+
+    // count >= effThreshold: promote to next level (maxLevel + 1)
+    // Check for the all-8s pattern: base = 10^10 and every level 1..maxLevel-1 equals 8
+    let all8 = (r0[0] === 10000000000)
+    for (let i = 1; i < maxLevel && all8; i++) {
+        if ((r0[i] || 0) !== 8) all8 = false
+    }
+
+    if (all8) {
+        // all-8s promotion: E^count(10^10) → F(count+2), F^count(F10) → G(count+2), etc.
+        let arg = count + 2
+        let level = maxLevel + 1
+        let letter = letterName(level)
+        // Format: α + letter + β (always show α)
+        let alpha = Math.pow(10, arg - Math.floor(arg))
+        if (alpha < 1) alpha *= 10
+        let alphaStr = regularFormat(alpha, precision)
+        let betaStr = formatR0Arg(Math.floor(arg), precision)
+        return alphaStr + letter + betaStr
+    }
+
+    // Non-all-8s promotion: fall back to metaPolarize for the polarized form
+    let r0Num = new MetaNum({ sign: 1, layer: 0, array: [r0.slice(0)] })
+    let pol = metaPolarize(r0.slice(0), r0Num)
+    let h = pol.height
+    let rep = pol.repeat || 1
+    let top = pol.top
+    let bottom = pol.bottom
+
+    // Convert repeated letters to next level when over threshold
+    if (rep > 1 && rep >= effThreshold) {
+        let newH = h + 1
+        let newTop = rep + 1
+        let newLetter = letterName(newH)
+        // Format: α + letter + β (always show α)
+        let alpha = bottom
+        if (alpha < 1) alpha = Math.pow(10, alpha)
+        let alphaStr = regularFormat(alpha, precision)
+        let betaStr = formatR0Arg(newTop, precision)
+        return alphaStr + newLetter + betaStr
+    }
+
+    // Below threshold: use outerLetters + α + lastLetter + β pattern
+    if (h <= 22) {
+        let letter = letterName(h)
+        if (rep > 1) {
+            // Repeated letters: outerLetters + α + lastLetter + β
+            let outerLetters = letter.repeat(rep - 1)
+            let alpha = bottom
+            if (alpha < 1) alpha = Math.pow(10, alpha)
+            let alphaStr = regularFormat(alpha, precision)
+            let betaStr = formatR0Arg(top, precision)
+            return outerLetters + alphaStr + letter + betaStr
         }
-        // When e is very large (>= sciThreshold, e.g. 1e9): use F-level with e in sci notation
-        // E^e(x) ≈ F(log*(x) + e) ≈ F(e) for huge e
-        if (e >= Math.pow(10, FORMAT_OPTIONS.sciThreshold)) {
-            let logE = Math.log10(e)
-            let mant = Math.pow(10, logE - Math.floor(logE))
-            let exp = Math.floor(logE)
-            return "F" + regularFormat(mant, precision) + "E" + commaFormat(exp)
-        }
-        // Small-to-medium e: combine with base for a compact E-format
-        let totalExponent = e + Math.log10(base)
-        let mantissa = Math.pow(10, totalExponent - Math.floor(totalExponent))
-        let exponent = Math.floor(totalExponent)
-        return regularFormat(mantissa, precision) + "E" + commaFormat(exponent)
+        // Single letter: α + letter + β
+        let alpha = bottom
+        if (alpha < 1) alpha = Math.pow(10, alpha)
+        let alphaStr = regularFormat(alpha, precision)
+        let betaStr = formatR0Arg(top, precision)
+        return alphaStr + letter + betaStr
     }
-    
-    // Build the chain from highest level down to F (level 2)
-    // Each non-zero level contributes its letter
-    // For maxLevel >= 3, if the F-level (r0[2]) is 0 but E-level (r0[1]) is non-zero,
-    // we treat it as an implicit F application: the E count is the argument to F
-    let chainLetters = ""
-    let hasImplicitF = false
-    for (let level = maxLevel; level >= 2; level--) {
-        if ((r0[level] || 0) > 0) {
-            chainLetters += letterName(level) // 2=F, 3=G, etc.
-        }
-    }
-    // Check for implicit F: maxLevel>=3, r0[2]=0, r0[1]>0 means G+ uses F with e=arg
-    if (maxLevel >= 3 && (r0[2] || 0) === 0 && (r0[1] || 0) > 0) {
-        chainLetters += "F"  // add implicit F
-        hasImplicitF = true
-    }
-    
-    // For F and higher levels: the displayed argument is the argument at level-1
-    // For r0=[base, e, f, 0, g]: chainLetters = "GF", the argument is f (F-level count)
-    // For GRAHAMS r0: maxLevel=4 (g=1), f=7.6e12, so output GF7.6E12
-    let argValue = 0
-    if (maxLevel >= 3) {
-        // For maxLevel = L (L>=3), the argument is r0[L-1] (the count at level L-1)
-        // e.g., maxLevel=4 (g): arg = r0[2] (f)
-        // e.g., maxLevel=3 (G, r0[2]=0, implicit F): arg = r0[1] (e)
-        // e.g., maxLevel=3 (G, r0[2]!=0): arg = r0[2] (f)
-        let prevLevelIdx = maxLevel - 1
-        argValue = r0[prevLevelIdx] || 0
-        if (argValue === 0 && hasImplicitF) {
-            argValue = r0[1] || 0
-        }
-        // Fallback: use metaPolarize
-        if (argValue === 0) {
-            let r0Num = new MetaNum({sign: 1, layer: 0, array: [r0]})
-            let pol = metaPolarize(r0.slice(0), r0Num)
-            argValue = pol.top
-        }
-    } else if (maxLevel === 2) {
-        // Only F level: argument is formatted via metaPolarize
-        let r0Num = new MetaNum({sign: 1, layer: 0, array: [r0]})
-        let pol = metaPolarize(r0.slice(0), r0Num)
-        argValue = pol.top
-    }
-    
-    // Special case: the GRAHAMS r0 where argValue is huge (~7.6e12)
-    // Format argValue in scientific notation if large
-    if (argValue >= Math.pow(10, FORMAT_OPTIONS.sciThreshold)) {
-        let logArg = Math.log10(argValue)
-        let argMant = Math.pow(10, logArg - Math.floor(logArg))
-        let argExp = Math.floor(logArg)
-        return chainLetters + regularFormat(argMant, precision) + "E" + commaFormat(argExp)
-    }
-    
-    // Small argValue: just format as regular number
-    if (chainLetters === "") {
-        // Only E level (shouldn't happen - handled earlier)
-        let r0Num = new MetaNum({sign: 1, layer: 0, array: [r0]})
-        return format(r0Num, precision, false)
-    }
-    return chainLetters + regularFormat(argValue, precision)
+
+    // Multi-letter range fallback: α + letter + β
+    let letter = letterName(Math.max(h, 23))
+    let alpha = bottom
+    if (alpha < 1) alpha = Math.pow(10, alpha)
+    let alphaStr = regularFormat(alpha, precision)
+    let betaStr = formatR0Arg(top, precision)
+    return alphaStr + letter + betaStr
 }
 
 // ─── Format with Ordinal Rows ────────────────────────────────────
@@ -848,15 +795,30 @@ function formatOrdinal(num, precision, precision4) {
             }
         } else {
             // r0 is a simple number (length=1 or just r0[0])
-            // Use J-like format: mantissa + letter + param
             let base = r0[0]
-            let bottom = Math.pow(10, base - Math.floor(base))
+            let alpha = Math.pow(10, base - Math.floor(base))
+            if (alpha < 1) alpha *= 10
+            let alphaStr = regularFormat(alpha, precision4)
             let top = Math.floor(base)
-            
-            // For simple r0: always use J-like format without collapsing letters
-            // Collapsing is only for multi-level r0 (GRAHAMS_NUMBER-like cases)
-            let mantissa = Math.log10(Math.max(bottom, 0.001)) + totalAaCount
-            return regularFormat(mantissa, precision4) + letter + commaFormat(top)
+            let betaStr = formatR0Arg(top, precision4)
+
+            // Collapse threshold: at multiLetterRepeatThreshold+1, advance to next letter
+            let collapseAt = effThreshold + 1
+
+            if (totalAaCount >= collapseAt) {
+                // Collapse to next letter (Aa→Ab, Ab→Ac, etc.)
+                let mantissa = Math.log10(Math.max(alpha, 0.001)) + totalAaCount
+                let newHeight = baseHeight + 1
+                let newLetter = letterName(newHeight)
+                return regularFormat(mantissa, precision4) + newLetter + betaStr
+            } else if (totalAaCount > 1) {
+                // Repeated letters: outerLetters + α + lastLetter + β
+                let outerLetters = letter.repeat(totalAaCount - 1)
+                return outerLetters + alphaStr + letter + betaStr
+            } else {
+                // Single letter: α + letter + β
+                return alphaStr + letter + betaStr
+            }
         }
     }
     
@@ -881,17 +843,20 @@ function formatOrdinal(num, precision, precision4) {
             height = 23 + (diag - 1) * 26 + vals[0]
         } else {
             // 3+ letters: need to calculate offset
+            // vals are stored in reverse letter order (e.g. "bc" -> [2,1]),
+            // so the leftmost letter digit is vals[nVals-1]:
+            //   n = vals[0]*26^0 + vals[1]*26^1 + ... (little-endian)
             let offset = 0
             for (let k = 2; k <= nVals; k++) {
                 offset += Math.pow(26, k)
             }
             let n = (diag - 1) * Math.pow(26, nVals)
             for (let j = 0; j < nVals; j++) {
-                n += vals[j] * Math.pow(26, nVals - 1 - j)
+                n += vals[j] * Math.pow(26, j)
             }
             height = 23 + offset + n
         }
-        
+
         if (baseLetterHeight === -1) {
             baseLetterHeight = height
         } else if (height !== baseLetterHeight) {
@@ -903,21 +868,160 @@ function formatOrdinal(num, precision, precision4) {
     
     if (allSameLetter && totalRepeat > 0 && baseLetterHeight >= 23) {
         let base = r0[0]
-        let bottom = Math.pow(10, base - Math.floor(base))
+        let alpha = Math.pow(10, base - Math.floor(base))
+        if (alpha < 1) alpha *= 10
+        let alphaStr = regularFormat(alpha, precision4)
         let top = Math.floor(base)
-        
+        let betaStr = formatR0Arg(top, precision4)
+
         // Check if we should advance (repeat threshold)
         let effThreshold = Math.max(2, FORMAT_OPTIONS.multiLetterRepeatThreshold)
-        if (totalRepeat >= effThreshold) {
+        let collapseAt = effThreshold + 1
+
+        // Check if r0 has multiple levels (e, f, g, ...)
+        let hasMultiLevelR0 = r0.length > 1
+
+        if (hasMultiLevelR0) {
+            // r0 has E/F/G levels: format as letter(s) + chain (e.g., Ab1.000E500)
+            let r0Str = formatR0AsChain(r0, precision4)
+            let letter = letterName(baseLetterHeight)
+            if (totalRepeat >= collapseAt) {
+                // Collapse to next letter
+                let mantissa = Math.log10(Math.max(alpha, 0.001)) + totalRepeat
+                let newLetter = letterName(baseLetterHeight + 1)
+                return regularFormat(mantissa, precision4) + newLetter + r0Str
+            } else if (totalRepeat > 1) {
+                // Repeated letters + chain
+                let outerLetters = letter.repeat(totalRepeat - 1)
+                return outerLetters + r0Str
+            } else {
+                // Single letter + chain
+                return letter + r0Str
+            }
+        }
+
+        // Simple r0 (no E/F/G levels)
+        if (totalRepeat >= collapseAt) {
             // Advance to next letter with mantissa
-            let mantissa = Math.log10(Math.max(bottom, 0.001)) + totalRepeat
+            let mantissa = Math.log10(Math.max(alpha, 0.001)) + totalRepeat
             let newHeight = baseLetterHeight + 1
             let letter = letterName(newHeight)
-            return regularFormat(mantissa, precision4) + letter + commaFormat(top)
-        } else {
-            // Below threshold, show as repeated letters
+            return regularFormat(mantissa, precision4) + letter + betaStr
+        } else if (totalRepeat > 1) {
+            // Repeated letters: outerLetters + α + lastLetter + β
             let letter = letterName(baseLetterHeight)
-            return regularFormat(bottom, precision4) + letter.repeat(totalRepeat) + commaFormat(top)
+            let outerLetters = letter.repeat(totalRepeat - 1)
+            return outerLetters + alphaStr + letter + betaStr
+        } else {
+            // Single letter: α + letter + β
+            let letter = letterName(baseLetterHeight)
+            return alphaStr + letter + betaStr
+        }
+    }
+
+    // ── Handle mixed letter types with collapse ──
+    // When ordinal rows have multiple different letter types (e.g., Aa + Ab),
+    // collapse lower-level letters to higher-level if count >= threshold
+    {
+        let letterCounts = {} // height -> count
+        let heights = []
+
+        for (let i = 0; i < ordRows.length; i++) {
+            let row = ordRows[i]
+            if (row.length < 2) continue
+
+            // Parse height from row
+            let height = -1
+            if (row.length === 2) {
+                height = 23 // ω-level (Aa)
+            } else {
+                let diag = row[row.length - 1]
+                let vals = row.slice(1, row.length - 1)
+                let nVals = vals.length
+                if (nVals === 1) {
+                    height = 23 + (diag - 1) * 26 + vals[0]
+                } else {
+                    let offset = 0
+                    for (let k = 2; k <= nVals; k++) offset += Math.pow(26, k)
+                    let n = (diag - 1) * Math.pow(26, nVals)
+                    for (let j = 0; j < nVals; j++) n += vals[j] * Math.pow(26, nVals - 1 - j)
+                    height = 23 + offset + n
+                }
+            }
+            if (height < 0) continue
+
+            let count = row[0] || 1
+            if (!(height in letterCounts)) heights.push(height)
+            letterCounts[height] = (letterCounts[height] || 0) + count
+        }
+
+        if (heights.length >= 2) {
+            // Sort heights ascending
+            heights.sort((a, b) => a - b)
+
+            // Collapse from lowest to highest
+            let effThreshold = Math.max(2, FORMAT_OPTIONS.multiLetterRepeatThreshold)
+            let collapseAt = effThreshold + 1
+            let collapseInfo = {} // height -> collapsedFromCount
+
+            for (let h of heights.slice()) {
+                let count = letterCounts[h] || 0
+                if (count >= collapseAt) {
+                    let nextH = h + 1
+                    if (!(nextH in letterCounts) && heights.indexOf(nextH) < 0) heights.push(nextH)
+                    letterCounts[nextH] = (letterCounts[nextH] || 0) + 1
+                    collapseInfo[nextH] = count
+                    delete letterCounts[h]
+                }
+            }
+
+            // Re-sort after collapse
+            heights = Object.keys(letterCounts).map(Number).sort((a, b) => a - b)
+
+            if (heights.length >= 1) {
+                // Compute r0 alpha
+                let base = r0[0]
+                let r0Alpha = Math.pow(10, base - Math.floor(base))
+                if (r0Alpha < 1) r0Alpha *= 10
+
+                // Find the innermost height (lowest) that has collapse info
+                let innerHeight = heights[0] // lowest = innermost
+                let collapseCount = collapseInfo[innerHeight] || 0
+
+                let alphaStr, betaStr
+                if (collapseCount > 0) {
+                    // Innermost letter collapsed: α and β come from the mantissa
+                    // α = 10^(fractional part) ∈ [1, 10), β = floor(mantissa) (integer)
+                    let mantissa = Math.log10(Math.max(r0Alpha, 0.001)) + collapseCount
+                    let alphaVal = Math.pow(10, mantissa - Math.floor(mantissa))
+                    if (alphaVal < 1) alphaVal *= 10
+                    alphaStr = regularFormat(alphaVal, precision4)
+                    betaStr = commaFormat(Math.floor(mantissa))
+                } else {
+                    // No collapse at innermost: α and β come directly from r0[0]
+                    alphaStr = regularFormat(r0Alpha, precision4)
+                    betaStr = formatR0Arg(Math.floor(base), precision4)
+                }
+
+                // Build output: outerLetters + alphaStr + lastLetter + betaStr
+                // Descending order (highest first = outermost)
+                let descHeights = heights.slice().reverse()
+                let lastHeight = descHeights[descHeights.length - 1] // lowest = innermost
+                let lastLetter = letterName(lastHeight)
+                let lastCount = letterCounts[lastHeight] || 1
+
+                let outerLetters = ""
+                for (let i = 0; i < descHeights.length - 1; i++) {
+                    let h = descHeights[i]
+                    let cnt = letterCounts[h] || 1
+                    outerLetters += letterName(h).repeat(cnt)
+                }
+                if (lastCount > 1) {
+                    outerLetters += lastLetter.repeat(lastCount - 1)
+                }
+
+                return outerLetters + alphaStr + lastLetter + betaStr
+            }
         }
     }
 
@@ -934,25 +1038,42 @@ function formatOrdinal(num, precision, precision4) {
     // Check if r0 has multiple levels: use formatR0AsChain for the r0 part
     let hasMultiLevelR0 = r0.length > 1
     if (hasMultiLevelR0) {
-        // h13-like case: AcAbAa + [chained r0]
-        // Omit mantissa 1.000 if it's clean, keep formatR0AsChain output for r0
+        // Ordinal letter(s) + r0 chain (which includes its own α)
         let r0Str = formatR0AsChain(r0, precision4)
         return letter + r0Str
     }
 
-    // Simple r0: format as mantissa + letter + top
+    // Simple r0: format as outerLetters + α + lastLetter + β
     let base = r0[0]
-    let bottom = Math.pow(10, base - Math.floor(base))
+    let alpha = Math.pow(10, base - Math.floor(base))
+    if (alpha < 1) alpha *= 10
+    let alphaStr = regularFormat(alpha, precision4)
     let top = Math.floor(base)
-    
-    // Omit leading 1.000 only when the letter is multi-letter chain (3+ distinct letters or more)
-    // for simple cases keep 1.000 prefix (backward compat)
-    let isLongChain = letter.length >= 6  // "AcAbAa" = 6 letters or more
-    let prefix = regularFormat(bottom, precision4)
-    if (isLongChain && bottom >= 0.999999 && bottom <= 1.000001) {
-        prefix = ""
+    let betaStr = formatR0Arg(top, precision4)
+
+    // Split letter string into tokens (each starts with uppercase)
+    let tokens = []
+    let current = ""
+    for (let i = 0; i < letter.length; i++) {
+        let c = letter[i]
+        if (c >= 'A' && c <= 'Z') {
+            if (current.length > 0) tokens.push(current)
+            current = c
+        } else {
+            current += c
+        }
     }
-    return prefix + letter + commaFormat(top)
+    if (current.length > 0) tokens.push(current)
+
+    if (tokens.length <= 1) {
+        // Single letter: α + letter + β
+        return alphaStr + letter + betaStr
+    }
+
+    // Multiple letters: outerLetters + α + lastLetter + β
+    let lastToken = tokens.pop()
+    let outerTokens = tokens.join("")
+    return outerTokens + alphaStr + lastToken + betaStr
 }
 
 // ─── Public API ──────────────────────────────────────────────────

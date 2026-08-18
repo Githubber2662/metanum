@@ -2,19 +2,21 @@
 
 [![NPM](https://img.shields.io/npm/v/metanum.svg)](https://www.npmjs.com/package/metanum)
 
-- MetaNum v1.3 by dlsdl
+- MetaNum v1.4 by dlsdl
 
 A huge number library holding up to X↑↑X&9e15.
 
 This reaches level f<sub>ε₀</sub>, which is the limit of well-defined expressions in BEAF, hence the name.
 
-MetaNum provides a robust implementation of hierarchical number representation based on the Hardy hierarchy (HH) and ordinal arithmetic. It can handle numbers far beyond standard JavaScript Number limits, using a sophisticated multi-dimensional array structure to represent ordinal numbers up to ε₀ (ω^ω^ω^……with ω floors). Internally, each MetaNum instance is represented as:
+MetaNum provides a robust implementation of hierarchical number representation based on ordinal arithmetic. It can handle numbers far beyond standard JavaScript Number limits, using a sophisticated multi-dimensional array structure to represent ordinal numbers up to ε₀ (ω^ω^ω^……with ω floors). Internally, each MetaNum instance is represented as:
 
 - **sign**: 1 (positive), -1 (negative), 2 (reciprocal positive), -2 (reciprocal negative)
-- **array**: 2-dimensional array `[[r0, e, f, g, ...], [acount, a1, a2, ...], [bcount, b1, b2, ...], ...]` where the first row holds the base value and finite hyper-operation exponents(represents the value of ...g 10^^^'s f 10^^'s e 10^'s r0), and subsequent rows hold ordinal terms(bcount times hyperoperation with ordinal level ...ω^2*b3+ω^*b2+b1 and acount times hyperoperation with ordinal level ...ω^2*a3+ω^*a2+a1, etc.), ordinal terms are sorted by levels from small to big
+- **array**: 2-dimensional array `[[r0, r1, r2, ...,rn], [acount, a1, a2, ...,ax], [bcount, b1, b2, ...,by], ...,[mcount, m1, m2, ...,mz]]` where the first row holds the base value and finite hyper-operation exponents and subsequent rows hold ordinal terms, ordinal terms are sorted by levels from small to big
 - **layer**: Non-negative integer representing the ω exponent tower height of hyperoperation level(ω^ω^……(ω polynomial) with layer ω^'s)
 
-A metanum number is nearly f_ω^ω^…(layer-1 ω^'s)…(…+ω^(…+ω^2*b3+ω^*b2+b1)*bcount+ω^(…+ω^2*a3+ω^*a2+a1)*acount)[…g 10^^^'s f 10^^'s e 10^'s r0](layer>=1) or f…[f^bcount_(…ω^2*b3+ω^*b2+b1)[f^acount_(…ω^2*a3+ω^*a2+a1)[…g 10^^^'s f 10^^'s e 10^'s r0]]…](layer=0) in Fast Growing Hierarchy
+Using extended arrow operations(see #Mathematical Background), a metanum number can be represented as \[none(sign=1)|-(sign=-1)|1/(sign=2)|-1/(sign=-2)] \[mcount(10{ω^(z-1)\*mz+...+ω^2\*m3+ω\*m2+m1})'s ... bcount(10{ω^(y-1)\*by+...+ω^2\*b3+ω\*b2+b1})'s acount(10{ω^(x-1)\*ax+...+ω^2\*a3+ω\*a2+a1})'s rn(10{n})'s ... r3(10{3})'s r2(10{2})'s r1(10{1})'s r0 (layer=0)|10{ω^ω^...(layer-1 ω^'s) (ω^(ω^(z-1)\*mz+...+ω^2\*m3+ω\*m2+m1)\*mcount+...+ω^(ω^(y-1)\*by+...+ω^2\*b3+ω\*b2+b1)\*bcount+ω^(ω^(x-1)\*ax+...+ω^2\*a3+ω\*a2+a1)\*acount+ω^n\*rn+...+ω^3\*r3+ω^2\*r2+ω\*r1+r0)}10 (layer>=1)]
+
+In Fast Growing Hierarchy, a metanum number is nearly `f_ω^ω^…(layer-1 ω^'s)…(ω^(ω^(z-1)*mz+…+ω^2*m3+ω^*m2+m1)*mcount+…+ω^(ω^(y-1)*by+…+ω^2*b3+ω*b2+b1)*bcount+ω^(ω^(x-1)*ax+…+ω^2*a3+ω*a2+a1)*acount+ω^n*rn+…+ω^3*r3+ω^2*r2+ω*r1+r0)[10](layer>=1)` or `f^mcount_(ω^(z-1)*mz+…+ω^2*m3+ω^*m2+m1)[…[f^bcount_(ω^(y-1)*by+…+ω^2*b3+ω^*b2+b1)[f^acount_(ω^(x-1)*ax+…+…ω^2*a3+ω*a2+a1)[rn 10{n}'s … r3 10^^^'s r2 10^^'s r1 10^'s r0]]…](layer=0)`
 
 ## Installation
 
@@ -26,8 +28,8 @@ npm install metanum
 
 ```javascript
 // From a plain number
-const a = new MetaNum(42);
-const b = MetaNum.fromNumber(-3.14);
+const a = new MetaNum(428571);
+const b = MetaNum.fromNumber(-2.71828);
 
 // From a string (supports scientific notation, hyper-operations, letter notation, brackets, etc.)
 const c = new MetaNum("1.5e308");
@@ -38,11 +40,11 @@ const g = MetaNum.fromString("Aa100");            // letter notation
 const h = MetaNum.fromString("[[10], [1, 3]]");   // bracket notation
 
 // From an array
-const i = MetaNum.fromArray([3.14, 1, 2]);        // [[3.14, 1, 2]]
+const i = MetaNum.fromArray([2.71828, 1, 2]);        // [[3.14, 1, 2]]
 const j = MetaNum.fromArray([10], 1, 1);          // layer 1
 
 // From an object / JSON
-const k = MetaNum.fromJSON('{"sign":1,"array":[[42]],"layer":0}');
+const k = MetaNum.fromJSON('{"sign":1,"array":[[428571]],"layer":0}');
 const l = MetaNum.fromObject({ sign: 1, array: [[1, 2]], layer: 0 });
 
 // From BigInt
@@ -56,7 +58,7 @@ const n = MetaNum.fromHyperE("EE100");
 
 ```javascript
 MetaNum.MAX_SAFE_INTEGER   // 9007199254740991
-MetaNum.E_
+MetaNum.E                  // log10(MSI)=15.954589770191
 MetaNum.POSITIVE_INFINITY  // Infinity
 MetaNum.NEGATIVE_INFINITY  // -Infinity
 MetaNum.GRAHAMS_NUMBER     // Graham's number (approximation)
@@ -227,9 +229,9 @@ x.megoexpande(3);         // mgea(3) = h111
 x.aperimegoexpande(3);    // apme(3) = h120
 
 // Level ω^2*2: diagonalize ω^2+ω*y
-x.megoaperionation(3);    // mgao(3) = h200
+x.megoaperionate(3);    // mgao(3) = h200
 
-// Level ω^2*2+1: iterate megoaperionation
+// Level ω^2*2+1: iterate megoaperionate
 x.gigote(3);              // gigo(3) = h201
 
 // Level ω^2*2+ω: diagonalize ω^2*2+y
@@ -239,9 +241,9 @@ x.aperigigote(3);         // apgg(3) = h210
 x.gigoaperionate(3);      // ggap(3) = h300
 
 // Level ω^3: diagonalize ω^2*y
-x.aperiatotion(3);        // apat(3) = h1000
+x.aperiatote(3);        // apat(3) = h1000
 
-// Level ω^3+1: iterate aperiatotion
+// Level ω^3+1: iterate aperiatote
 x.powiainate(3);          // pwan(3) = h1001
 
 // Level ω^3+ω: diagonalize ω^3+y
@@ -257,7 +259,7 @@ x.powiairate(3);          // pwar(3) = h2000
 x.aperioguate(3);         // apgu(3) = h10000
 
 // Level ω^ω: diagonalize ω^x (layer 1 transition)
-x.iter(3);                // ite(3) = hww
+x.iterate(3);                // iter(3) = hww
 
 // Level ω^ω+1: iterate ω^ω level operations
 x.itermult(3);            // itmu(3) = hw01
@@ -312,7 +314,7 @@ x.i_epan(z)     // i1010 = inverse of expandainate
 x.i_mgan(z)     // i1100 = inverse of megodainate
 x.i_pwar(z)     // i2000 = inverse of powiairate
 x.i_apgu(z)     // i10000 = inverse of aperioguate
-x.i_ite(z)      // iww = inverse of iter
+x.i_iter(z)      // iww = inverse of iter
 x.i_itmu(z)     // iw01 = inverse of itermult
 x.i_cube(z)     // iwx2 = inverse of cuboiter
 x.i_expo(z)     // iwa1 = inverse of expoiter
@@ -324,26 +326,34 @@ x.i_epsl(z)     // iepsl = inverse of epsilonate
 
 ## BEAF Operations
 
-Bowers' Exploding Array Function (BEAF) is supported via ordinal arithmetic for 4+ arguments:
+Bowers' Exploding Array Function (BEAF) is supported via ordinal arithmetic for 3+ arguments:
 
 ```javascript
+// BEAF(a,b,c,d,e,f,...) = a{...+ω^3*(f-1)+ω^2*(e-1)+ω*(d-1)+(c-1)}b
+
 // 3-entry: {a,b,c} = a↑^c b (standard up-arrow notation)
 MetaNum.BEAF(3, 3, 2);       // 3↑↑3 = 7625597484987
 MetaNum.BEAF(3, 3, 3);       // 3↑↑↑3 = tritri
 
-// 4-entry: {a,b,c,d} = a(ω*(d-1)+(c-1) level operation)b
-MetaNum.BEAF(2, 2, 1, 2);    // = 4
-MetaNum.BEAF(3, 3, 3, 3);    // 3(ω*2+2 level operation)3
+// 4-entry: {a,b,c,d} = a(ω*d+c level operation)b
+MetaNum.BEAF(2, 2, 1, 2);    // 2{ω}2
+MetaNum.BEAF(3, 3, 3, 3);    // 3{ω*2+2}3
 
 // 5+ entry: ordinal arithmetic
-// BEAF(a,b,c,d,...,n) = a(ω^(n-3)*(arg_n-1)+...+ω*(d-1)+(c-1) level operation)b
-MetaNum.BEAF(10, 2, 1, 1, 2); // = BEAF(10,10,10,10) (ω^2 level operation)
-MetaNum.BEAF(3, 3, 3, 3, 2);  // 3(ω^2+ω*2+2 level operation)3
+MetaNum.BEAF(10, 2, 1, 1, 2); // 10{ω^2}2
+MetaNum.BEAF(3, 3, 3, 3, 2);  // 3{ω^2+ω+1}3
+MetaNum.BEAF(4, 5, 6, 7, 8, 9);  // 4{ω^3*8+ω^2*7+ω*6+5}5
+
+// nested BEAF: {a,{b,c,d,e},f,g,h}
+// An argument exceeding MSI supremum-collapses (use fundamental sequences rules):
+// ω*i+HUGE ≈ ω*(i+1), ω^i*HUGE ≈ ω^(i+1), etc.
+// (lower coefficients are swallowed), and the result anchors at that argument's value.
+MetaNum.BEAF(4, MetaNum.BEAF(4, 2, 3, 5), 3, 5); // 4{ω*4+2}4{ω*4+2}2
 
 // Parse BEAF string notation
 MetaNum.fromBeaf("{3,3,3}");         // 3↑↑↑3
-MetaNum.fromBeaf("{3,3,3,3}");       // 3(ω*2+2)3
-MetaNum.fromBeaf("{10,2,1,1,2}");    // 10(ω^2)2
+MetaNum.fromBeaf("{3,3,3,3}");       // 3{ω*2+2}3
+MetaNum.fromBeaf("{10,2,1,1,2}");    // 10{ω^2}2
 
 // Convert to BEAF string
 new MetaNum(7625597484987).toBeaf();  // "{7625597484987}"
@@ -388,12 +398,12 @@ MetaNum.sumArithmeticSeries(5, 1, 2);      // 1+3+5+7+9 = 25
 MetaNum.affordArithmeticSeries(100, 1, 2, 0);
 
 // Configuration
-MetaNum.config({ maxRows: 200, maxCols: 200, maxArrow: 1e6, debug: 1 });
+MetaNum.config({ maxRows: 50, maxCols: 50, maxArrow: 1e6, debug: 1 });
 ```
 
-## Mathematical Background
+# Mathematical Background
 
-The library implements the Hardy hierarchy (HH), which is a hierarchy of functions indexed by ordinal numbers. The representation uses Cantor normal form for ordinals, where:
+The library implements the extended arrow operation which is a hierarchy of functions indexed by ordinal numbers. The representation uses Cantor normal form for ordinals, where:
 
 - ω represents the first infinite ordinal
 - ω^ω represents ω raised to the power of ω
@@ -401,9 +411,50 @@ The library implements the Hardy hierarchy (HH), which is a hierarchy of functio
 
 For more information, see: <https://en.wikipedia.org/wiki/Ordinal_arithmetic>
 
-The layer parameter indicates the height of the ω exponent tower, allowing representation of increasingly large ordinals.
+## Definition
 
-## dlsdl's Letter Notation
+Let n and b be natural numbers, and α be a countable ordinal
+
+- rule 1: If α=0, n{α}b=n×b
+- rule 2: If α is a successor ordinal, then n{α}b =n if b=1, =n{α-1}n{α}(b-1) if b>1
+- rule 3: If α is a limit ordinal, then n{α}b=n{α\[b]}n
+- rule 4: Operations are calculated from right to left
+
+where α\[b] denotes the b-th element of the fundamental sequence assign to the limit ordinal of α, see also fundamental sequences for limit ordinals written in Cantor normal form:
+
+- ω\[n]=n
+- ω^(α+1)\[n]=ω^α×n where ω^α×n=ω^α+ω^α+...+ω^α with n ω^α's
+- ω^α\[n]=ω^(α\[n]) if and only if α is a limit ordinal
+- (ω^(α_1)+ω^(α_2)+...+ω^(α_k))\[n]=ω^(α_1)+ω^(α_2)+...+ω^(α_k)\[n], where α_1>=α_2>=...>=α_k
+- ε₀\[0]=1 and ε₀\[n+1]=ω^ε₀\[n]
+
+## Examples
+
+642663{0}178187=642663×178187=114514191981
+
+10{1}5=10{0}10{1}4=10{0}10{0}10{1}3=10{0}10{0}10{0}10{1}2=10{0}10{0}10{0}10{0}10{1}1=10×10×10×10×10=10^5=100000
+
+10{2}4=10{1}10{2}3=10{1}10{1}10{2}2=10{1}10{1}10{1}10{2}1=10{1}10{1}10{1}10=10^(10^(10000000000))
+
+10{3}3=10{2}10{2}10=10{2} 9(10{1})'s 10=10↑↑(10^10^10^10^10^10^10^10^10000000000)
+
+3{ω}5=3{5}5=3{4}3{4}3{4}3{4}3=3{4}3{4}3{4}3{3}3{3}3=3{4}3{4}3{4}3{3}3{2}3{2}3=3{4}3{4}3{4}3{3}3{2}3{1}3{1}3=3↑↑↑↑3↑↑↑↑3↑↑↑↑3↑↑↑3↑↑7625597484987
+
+5{ω+1}4=5{ω}5{ω+1}3=5{ω}5{ω}5{ω+1}2=5{ω}5{ω}5{ω}5{ω+1}1=5{ω}5{ω}5{ω}5=5{ω}5{ω}5{5}5=5{ω}5{5{5}5}5=5{5{5{5}5}5}5
+
+4{ω+2}3=4{ω+1}4{ω+1}4=4{ω+1}4{ω}4{ω}4{ω}4=4{ω+1}4{4{4{4}4}4}4=4{ω}4{ω}... with 4{4{4{4}4}4}4 4's
+
+10{ω×2}10=10{ω+10}10=9(10{ω+9})'s 10=8(10{ω+9})'s 9(10{ω+8})'s 10=8(10{ω+9})'s 8(10{ω+8})'s ... 8(10{ω+1})'s 8(10{ω})'s 8(10{9})'s ... 8(10{1})'s 10000000000
+
+10{ω^2}4=10{ω×4}4=10{ω×3+4}4=10{ω×3+3}10{ω×3+3}10{ω×3+3}10=10{ω×3+3}10{ω×3+3} 8(10{ω×3+2})'s 8(10{ω×3+1})'s 8(10{ω×3})'s 8(10{ω×2+9})'s ... 8(10{ω×2})'s ... 8(10{ω})'s ... 8(10{1})'s 10000000000
+
+10{ω^ω}4=10{ω^4}4=10{ω^3×4}4=10{ω^3×3+ω^3}4=10{ω^3×3+ω^2×4}4=...=10{ω^3×3+ω^2×3+ω×3+4}4=3(10{ω^3×3+ω^2×3+ω×3+3})'s 10=2(10{ω^3×3+ω^2×3+ω×3+3})'s 8(10{ω^3×3+ω^2×3+ω×3+2})'s 8(10{ω^3×3+ω^2×3+ω×3+1})'s ... 8(10{1})'s 10000000000
+
+10{ω^(ω^2)}4=10{ω^(ω×ω)}4=10{ω^(ω×4)}4=10{ω^(ω×3+4)}4=10{ω^(ω×3+3)×ω}4=10{ω^(ω×3+3)×4}4=10{ω^(ω×3+3)×3+ω^(ω×3+2)×3+ω^(ω×3+1)×3+...+ω^2×3+ω×3+4}4
+
+10{ε₀}4=10{ω^(ω^(ω^ω))}4=10{ω^(ω^(ω^4))}4=10{ω^(ω^(ω^3×3+ω^2×3+ω×3+4))}4=10{ω^(ω^(ω^3×3+ω^2×3+ω×3+3)×3+ω^(ω^3×3+ω^2×3+ω×3+2)×3+...++ω^2×3+ω×3+4)}4
+
+# dlsdl's Letter Notation
 
 Modified from PsiCubed's letter notation(<https://googology.fandom.com/wiki/User_blog:PsiCubed2/My_Letter_Notation>)
 
@@ -413,7 +464,7 @@ The idea here is to extend the PsiCubed's letter notation to much larger numbers
 
 (2) Given the standard representation of two numbers, one can immediately tell which one is larger without any calculations.
 
-### The format of the proposed notation
+## The format of the proposed notation
 
 Our final notation will look like this:
 
@@ -425,17 +476,19 @@ where \[letter] can be one of the following: E,F,G,H,……,Aa,Ab,Ac,……,Ba,B
 
 and \[number] can be any positive real number (nonintegers included).
 
+## Single letter notation
+
 ### The First Levels: A Continuous version of Knuth Arrows
 
 We'll define:
 
-Eα=10^α
+Eα = 10^α = 10{1}α
 
-Fα = EEEE...EEE(10^frac(α)) with int(α) E's
+Fα = EEEE...EEE(10^frac(α)) with int(α) E's = 10{2}α
 
-Gα = FFFF...FFF(10^frac(α)) with int(α) F's
+Gα = FFFF...FFF(10^frac(α)) with int(α) F's = 10{3}α
 
-Hα = GGGG...GGG(10^frac(α)) with int(α) G's
+Hα = GGGG...GGG(10^frac(α)) with int(α) G's = 10{4}α
 
 then we'll have I,J,K,... to Z ,each with the same definition as Hα.
 
@@ -443,9 +496,9 @@ Note that according to these definitions we have:
 
 (1) For α≤1: Eα = Fα = Gα = Hα = ... = Zα = 10^α
 
-(2) For any integer β: Eβ = 10↑β, Fβ = 10↑↑β, Gβ = 10↑↑↑β, Hβ = 10↑↑↑↑β
+(2) For any integer β: Eβ = 10{1}β, Fβ = 10{2}β, Gβ = 10{3}β, Hβ = 10{4}β
 
-the γ-th letter β represents 10(γ-4 arrows)β
+the γ-th letter β represents 10(γ-4 arrows)β = 10{γ-4}β
 
 So the above definitions are indeed an extention of Knuth arrows to nonintegers.
 
@@ -485,13 +538,15 @@ And αFβ is a power tower of β 10's topped by an α.
 
 And again, given any specific letter (E,F,G,H,...,ζ), ANY number greater than 1 has a unique representation as αΓβ (with 1≤α<β). So we can call this the Binary-Γ-Canonical Form of α.
 
+## Multi letter notation
+
 ### Defining Aa - The First Diagonalization
 
 In the previous section we've defined an infinite sequence of functions, so we can diagonalize over them:
 
 let 1|α = Eα, 2|α = Fα, 3|α = Gα, ..., 22|α = Zα.
 
-we had: Aaα = α|10.
+we had: Aaα = α|10 = 10{α}10.
 
 So Aa is comparable to f\_ω\_(n) in the FGH.
 
@@ -565,7 +620,7 @@ We can, of-course, repeat what we did in the previous section as many times as w
 
 Note that (β,γ) is comparable to f\_ω\*β+γ\_(α) in the FGH. Also, if we read (0,γ)|α as γ|α, this notation is a direct extension of everything we did before this section. Also, in this new notation we can write Baα = (2,0)|α, Bbα = (2,1)|α,... Bzα = (2,25)|α.
 
-So QqQe308 is about f\_ω17+16\_(f\_ω17+4\_(308)).
+So QqQe308=10{ω17+16}10{ω17+4}308 is about f\_ω17+16\_(f\_ω17+4\_(308)).
 
 And with this new supporting notation we can now to define Aaaα:
 
@@ -576,6 +631,8 @@ And with this new supporting notation we can now to define Aaaα:
 With rule (ii) containing a very neat trick that allows us to do the double-diagonalization with a single number: Aaa1.5 = (2,1)|1.5, Aaa2.5 = (2,5)|10
 
 At any rate, it isn't too difficult to see that Aaa behaves "nicely" and allows us to speak of Aaa-Canonical Forms of any number. And since Aaa2=Ba10, Aaa3=Ca10,..., Aaa26=Za10, this also enables us to write the Unversal Canonical Form of any number about f\_ω^2\_(10) in the FGH.
+
+## Symbol and letter notation
 
 ### Arrays with more than two variable, and !Aa
 
@@ -649,7 +706,7 @@ The Definiton of more symbols is similar to the definition of @Aa.
 
 \#Aa \~ f\_ω^ω^ω^ω\_(10)
 
-$Aa \~ f\_ω^ω^ω^ω^ω\_(10)
+\$Aa \~ f\_ω^ω^ω^ω^ω\_(10)
 
 Then we can define (the β-th symbol or symbol combination)Aa = f\_ω^ω^...^ω(β+1 ω's)\_(10)
 
@@ -659,10 +716,11 @@ Then we can define (the β-th symbol or symbol combination)Aa = f\_ω^ω^...^ω(
 
 αεβ \~ f\_ω^ω^...^ω(β ω's)\_(α)
 
-#### Using dlsdl's letter notation, the biggest number we can define in Metanum is about ε1.797e308.
+#### Using dlsdl's letter notation, the biggest number we can define in Metanum is about ε9.007E15
 
-## Changelog
+# Changelog
 
+- 2026-8-18 v1.4 Support hyper operation >MSI and fix format-metanum bugs
 - 2026-7-31 v1.3 Add format-metanum.js, fix basic operations, hyper operations and BEAF bugs
 - 2026-7-9 v1.2 Add more hyper operations up to ε₀, add BEAF operation and fix bugs
 - 2026-6-3 v1.1 Add support for very small numbers ,add more hyper operations and fix bugs
