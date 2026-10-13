@@ -5729,6 +5729,40 @@
         }
       }
 
+      // !αAaβ binary diagonal (notation-semantics §2, decision 1B):
+      //   !αAaβ = !Aa(β + log₅(α/2))
+      // Built as the de-layered instance A(a×⌊x⌋)(x) when the row fits
+      // maxCols, otherwise the layer-1 marker. Must run before diagBinMatch so
+      // the α≠2 diagonal case stops using the lossy compact row.
+      // α = 1.000 (the legacy "no mantissa" spelling) is left to the existing
+      // 1.0+-strip below, but α = 1 without decimals follows the formula.
+      var aaBinMatch = rem.match(/^!(\d+(?:\.\d+)?)Aa(\d+(?:\.\d+)?(?:[Ee]\d+)?)$/);
+      if (aaBinMatch) {
+        var aaMant = Number(aaBinMatch[1]);
+        var aaBeta = Number(aaBinMatch[2]);
+        var aaSkipLegacy = (aaMant === 1 && aaBinMatch[1].indexOf('.') >= 0);
+        if (!aaSkipLegacy && isFinite(aaMant) && aaMant > 0 &&
+            isFinite(aaBeta) && aaBeta >= 0) {
+          var aaX = aaBeta + Math.log(aaMant / 2) / Math.log(5);
+          var aaK = Math.max(1, Math.floor(aaX));
+          var aaVal = new MetaNum();
+          if (aaX >= 1 && aaK + 2 <= MetaNum.maxCols) {
+            var aaRow = [1];
+            for (var ai = 0; ai < aaK; ai++) aaRow.push(0);
+            aaRow.push(1);
+            aaVal.array = [[aaX], aaRow];
+            aaVal.layer = 0;
+          } else {
+            aaVal.array = [[aaX], [1, 0, 1]];
+            aaVal.layer = (aaX >= 1) ? 1 : 0;
+          }
+          aaVal.sign = 1;
+          aaVal.normalize();
+          if (negateIt) aaVal.sign = -1;
+          return aaVal;
+        }
+      }
+
       // Canonical diagonal-letter output "mantissa LETTER β" where LETTER is
       // any multi-letter token ending in 'a' (Aa, Ba, Aaa, Aaaa, …), with the
       // dlsdl diagonal mantissa α ∈ [2,10):

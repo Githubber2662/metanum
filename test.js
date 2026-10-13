@@ -124,6 +124,37 @@ console.log("\n=== D05 !Aa(real alpha) ===");
 })();
 
 // ─────────────────────────────────────────────────────────────
+// D06 · !αAaβ = !Aa(β + log₅(α/2))  (notation-semantics §2, A1)
+// ─────────────────────────────────────────────────────────────
+console.log("\n=== D06 !alpha Aa beta ===");
+(function () {
+  function log5(x) { return Math.log(x) / Math.log(5); }
+  function buildAa(x) {
+    var k = Math.max(1, Math.floor(x));
+    var row = [1];
+    for (var i = 0; i < k; i++) row.push(0);
+    row.push(1);
+    return MetaNum.fromArray([[x], row]);
+  }
+  ok("!2.5Aa4 != 0", MetaNum("!2.5Aa4").neq(0), MetaNum("!2.5Aa4").toString());
+  ok("!1.5Aa4 != 0", MetaNum("!1.5Aa4").neq(0), MetaNum("!1.5Aa4").toString());
+  ok("!1Aa1.5 != 0", MetaNum("!1Aa1.5").neq(0), MetaNum("!1Aa1.5").toString());
+  // formula: !αAaβ == !Aa(β + log5(α/2))
+  ok("!2.5Aa4 == !Aa(4+log5(2.5/2))",
+    MetaNum("!2.5Aa4").eq(buildAa(4 + log5(2.5 / 2))));
+  ok("!1.5Aa4 == !Aa(4+log5(1.5/2))",
+    MetaNum("!1.5Aa4").eq(buildAa(4 + log5(1.5 / 2))));
+  // no regression on the documented anchor (α=2 → log5(1)=0)
+  ok("!2.0000Aa4 === !Aa4", MetaNum("!2.0000Aa4").eq(MetaNum("!Aa4")));
+  // legacy 1.0+ spelling still means "no mantissa"
+  ok("!1.000Aa5 === !Aa5 (legacy)", MetaNum("!1.000Aa5").eq(MetaNum("!Aa5")));
+  // formatter round-trips the true value as the binary form
+  eq("format(!2.5Aa4)", format(MetaNum("!2.5Aa4")), "!2.500Aa4");
+  ok("round-trip !2.5Aa4", MetaNum(format(MetaNum("!2.5Aa4"))).eq(MetaNum("!2.5Aa4")));
+  ok("round-trip !2.376Aa999", MetaNum(format(MetaNum("!2.376Aa999"))).eq(MetaNum("!2.376Aa999")));
+})();
+
+// ─────────────────────────────────────────────────────────────
 // D07 · 2{λ}2 = 4 (notation-semantics §3, rule 3)
 // ─────────────────────────────────────────────────────────────
 console.log("\n=== D07 2{lambda}2 ===");
