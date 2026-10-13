@@ -6,7 +6,12 @@
 | 基线版本 | metanum **v2.0.2**（`17fd56e`），Node 22 |
 | 维护 fork | <https://github.com/MarchBeta2087/metanum> |
 | 复现脚本 | [`docs/repro/issue-17.js`](repro/issue-17.js)（`node docs/repro/issue-17.js`） |
-| 文档状态 | 初稿（待语义确认项见各条「期望」栏） |
+| 回归测试 | [`test.js`](../test.js)（`npm test`）；全量套件 `npm run test:suite` |
+| 文档状态 | Phase 1（D01–D04）已修复；D05–D07 待语义规范 |
+
+> **Phase 1 进度（D01–D04 已修复）**：分支 `fix/issue-17-phase1`。
+> `npm test` 30 条回归全过，`npm run test:suite`（test_mixed.js）1006 PASS / 0 FAIL。
+> D03 的「不可表示」行为确定为**抛出** `MetaNumUnrepresentableError`（`code=METANUM_UNREPRESENTABLE`）。
 
 > 本册只做**缺陷登记与判定标准**，不含修复方案。修复前必须先完成
 > [`notation-semantics.md`](notation-semantics.md)（记号形式语义规范）中相关条目的定义——
@@ -18,10 +23,10 @@
 
 | ID | 现象 | 分类 | 代码位置（假设） | 影响游戏版本 | 状态 |
 |---|---|---|---|---|---|
-| **D01** | `pow(10, α)` 在 α ≤ −324 处符号反转，返回 `+10^|α|` | bug | `pow` / 小数量级规范化 | 低（游戏用大数） | 待确认 |
-| **D02** | `toBeaf()` 值 > MSI 时丢底数（`{10,16} → {16}`） | bug | `toBeaf` | 中（展示） | 待确认 |
-| **D03** | `toBeaf()` 3+ 项 LAN 输出内部数组 dump | bug | `toBeaf` | 中（展示） | 待确认 |
-| **D04** | `format()` 重复单字母折叠错误（`ZZ152416 → 1.000Z3`） | bug | `format-metanum.js` | 中（展示） | 待确认 |
+| **D01** | `pow(10, α)` 在 α ≤ −324 处符号反转，返回 `+10^|α|` | bug | `pow` / 小数量级规范化 | 低（游戏用大数） | ✅ 已修复 (Phase 1) |
+| **D02** | `toBeaf()` 值 > MSI 时丢底数（`{10,16} → {16}`） | bug | `toBeaf` | 中（展示） | ✅ 已修复 (Phase 1) |
+| **D03** | `toBeaf()` 3+ 项 LAN 输出内部数组 dump | bug | `toBeaf` | 中（展示） | ✅ 已修复 (Phase 1) |
+| **D04** | `format()` 重复单字母折叠错误（`ZZ152416 → 1.000Z3`） | bug | `format-metanum.js` | 中（展示） | ✅ 已修复 (Phase 1) |
 | **D05** | `!Aa`（非整数 α）解析为 `0` | bug | `fromString` / 符号记法 | 低 | 待确认 |
 | **D06** | `!αAaβ`（非整数 α）解析为 `0` / 畸形 | bug | `fromString` / 符号记法 | 低 | 待确认 |
 | **D07** | `2{λ}2 ≠ 4`（λ ≥ ω^ω·2） | **SPEC + bug** | 高阶序数归约 / rule 3 | 中（正确性） | 待语义确认 |

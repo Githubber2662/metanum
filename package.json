@@ -8,12 +8,13 @@
     "format-metanum.js",
     "test-interface.html",
     "test_mixed.js",
+    "test.js",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "test": "node test.js",
-    "example": "node basic-usage.js"
+    "test:suite": "node test_mixed.js"
   },
   "keywords": [
     "large-numbers",

@@ -1495,6 +1495,26 @@ function formatFiniteRowChain(r0, finiteRows, precision) {
         }
     }
 
+    // ── Repeated top letter over a dominant lower level ──
+    // When the top row is only a prefix (count ≤ threshold) but a lower row
+    // holds the real argument, polarizeFiniteChain collapses the whole chain
+    // and the top argument degenerates to a tiny count: ZZ152416 used to read
+    // "1.000Z3".  Spell the top row as prefix letters and format the remaining
+    // chain on its own, which keeps the real argument
+    // (ZZ152416 → "Z1.000Z152,416", matching the AaAa300 → "Aa1.000Aa300" law).
+    let topRow = finiteRows[finiteRows.length - 1]
+    if (finiteRows.length >= 2 && topRow && topRow[1] === topLv &&
+        Number.isInteger(topRow[0]) && topRow[0] >= 1 && topRow[0] <= effThreshold) {
+        let restR0 = r0.slice(0)
+        for (let i = 0; i < finiteRows.length - 1; i++) {
+            let r = finiteRows[i]
+            while (restR0.length <= r[1]) restR0.push(0)
+            restR0[r[1]] = r[0]
+        }
+        let innerStr = formatR0AsChain(restR0, precision)
+        if (innerStr) return letterName(topLv).repeat(topRow[0]) + innerStr
+    }
+
     // fallback: single binary at the top letter
     let polF = polarizeFiniteChain(r0, finiteRows)
     if (polF && isFinite(polF.bottom) && polF.bottom >= 1) {
