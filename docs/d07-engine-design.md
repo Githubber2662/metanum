@@ -5,7 +5,7 @@
 | 目标 | 让 `cuboiter`/`expoiter`/`trioterate`/`trixxate`/`aperixxate`/`epsilonate` 对**小 y** 给出与 rule 3 一致的精确值（当前是 marker 近似） |
 | 依据 | [`notation-semantics.md`](notation-semantics.md) §3（`λ[b]`） |
 | 现状 | 仅 `x=2,y=2 → 4` 有正确快速路径；`aperionate`(ω²)/`iter`(ω^ω) 本身对 `y < maxCols` 已精确 |
-| 状态 | 设计稿（待实现） |
+| 状态 | B2-a 已实现（`2{λ}y=4`）；B2-b..d 待定 |
 
 ---
 
@@ -102,3 +102,27 @@
 - 本改动触及库的最核心求值路径，且中间值可能极大，**是本次修复中风险最高的部分**。
 - 游戏《失控 AI 增量》只用大数，marker 近似已覆盖红线；B2 是**正确性投资**，不阻塞 D01–D06。
 - 建议：B2-a 先行，若工作量/风险超预期，则把 B2-b..d 拆为独立 issue。
+
+---
+
+## 7. 实现记录
+
+### B2-a（已落地）
+
+**结论**：`x≥3` 的精确级联不可行（`3{ω^ω·2}2 = 3{ω^ω+ω²}3` 是天文数字，且 `_hyperopFromOrdinal` 中间步骤本身就爆炸）。因此 B2-a 把可精确的部分做到位，其余保持 marker。
+
+**可精确的不变量**：对任意极限/后继层 `λ` 与整数 `y≥2`，
+
+```
+2{λ}y = 2{λ[y]}2 = … = 2{2}2 = 2² = 4
+```
+
+（有限层不成立：`2{1}3=8`。）
+
+**实现**：
+1. `_hyperopFromOrdinal` / `_ordinalHyperop`：当 `x=2 && y.isint() && y≥2 && cf 含 ω 项` → 返回 4。
+2. 8 个 marker 方法（`iter/itermult/cuboiter/expoiter/trioterate/trixxate/aperixxate/epsilonate`）的同款守卫（它们不经过引擎）。
+
+**效果**：`2{λ}y = 4` 对 10 个方法、`y ∈ {2,3,4,5,1000}` 全部成立；`test_mixed` 1006/0、`test.js` 61/0。
+
+**仍未做**：B2-b..d（`x≥3` 精确化）。如上所述，这需要先解决“中间序数不可表示”的根本限制，**不建议在没有明确需求时投入**。

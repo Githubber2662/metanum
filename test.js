@@ -159,12 +159,19 @@ console.log("\n=== D06 !alpha Aa beta ===");
 // ─────────────────────────────────────────────────────────────
 console.log("\n=== D07 2{lambda}2 ===");
 (function () {
-  var ops = ["aperionate", "iter", "itermult", "cuboiter", "expoiter",
+  var ops = ["aperiote", "aperionate", "iter", "itermult", "cuboiter", "expoiter",
              "trioterate", "trixxate", "aperixxate", "epsilonate"];
-  ops.forEach(function (op) {
-    var v = new MetaNum(2)[op](2);
-    ok("2{" + op + "}2 === 4", v.eq(4), v.toString());
+  // B2-a: for base 2 every infinite/successor level collapses to 4 for any
+  // integer y >= 2 (rule 3 turns the argument into 2).
+  [2, 3, 5, 1000].forEach(function (y) {
+    ops.forEach(function (op) {
+      var v = new MetaNum(2)[op](y);
+      ok("2{" + op + "}" + y + " === 4", v.eq(4), v.toString());
+    });
   });
+  // finite levels must NOT collapse (2{1}3 = 8, 2{2}3 = 16)
+  ok("2{1}3 === 8 (finite unaffected)", new MetaNum(2).arrow(1)(3).eq(8));
+  ok("2{2}3 === 16 (finite unaffected)", new MetaNum(2).arrow(2)(3).eq(16));
   ok("3{ω²}1 === 3 (y=1)", new MetaNum(3).aperionate(1).eq(3));
   ok("3{ω^ω}1 === 3 (y=1)", new MetaNum(3).trixxate(1).eq(3));
 })();

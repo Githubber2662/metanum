@@ -3034,6 +3034,8 @@
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (cf.length === 0) return x.mul(y); // rule 1: x{0}y = x*y
+    // B2-a: base-2 infinite-level collapse (see _hyperopFromOrdinal).
+    if (x.eq(2) && y.isint() && y.gte(2) && coeffsHaveOmegaPart(cf)) return new MetaNum(4);
 
     if (!coeffsHaveOmegaPart(cf)) {
       // finite level: arrow() handles both small and huge operands
@@ -3105,6 +3107,9 @@
 
     var cf0 = trimCoeffs((coeffs || []).slice());
     if (cf0.length === 0) return x.mul(y); // rule 1: x{0}y = x*y
+    // B2-a: for base 2 every infinite level collapses (rule 3 turns the
+    // argument into 2; 2{...}2 = 2{2}2 = 4). Finite levels are excluded.
+    if (x.eq(2) && y.isint() && y.gte(2) && coeffsHaveOmegaPart(cf0)) return new MetaNum(4);
     // Fractional level coefficients come from a fundamental sequence taken at a
     // non-integer index.  On the diagonal ω = x, so ω^(k)·(c+f) = ω^(k)·c +
     // ω^(k-1)·(x·f) — resolve top-down until only the constant term can still be
@@ -3837,9 +3842,11 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    // rule 3 collapses x{λ}2 to x{λ[2]}x; for x=2 every further FS step keeps
-    // the argument at 2 and the cascade ends at 2{2}2 = 2² = 4 (issue #17 D07).
-    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
+    // rule 3 collapses x{λ}y to x{λ[y]}x; for x=2 the argument becomes 2 and
+    // every further FS/successor step keeps it there, so the cascade ends at
+    // 2{...}2 = 2{2}2 = 4 for ANY limit/successor level λ and integer y >= 2
+    // (issue #17 D07/B2-a). Finite levels are excluded (2{1}3 = 8).
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
 
     // iterate(x,y) = x{ω^ω}y. Rule 3 with the fundamental sequence
@@ -3962,7 +3969,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4028,7 +4035,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4090,7 +4097,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4145,7 +4152,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4200,7 +4207,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4262,7 +4269,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4336,7 +4343,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
-    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     // ε₀[2] = ω^ω, so epsilonate(x,2) = x{ω^ω}x = iterate(x,x) exactly (the
     // same value itermult(x,2) produces — x{ε₀}2 = x{ω^ω+1}2).
