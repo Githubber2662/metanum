@@ -3837,6 +3837,9 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    // rule 3 collapses x{λ}2 to x{λ[2]}x; for x=2 every further FS step keeps
+    // the argument at 2 and the cascade ends at 2{2}2 = 2² = 4 (issue #17 D07).
+    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
 
     // iterate(x,y) = x{ω^ω}y. Rule 3 with the fundamental sequence
@@ -3959,6 +3962,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4024,6 +4028,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4085,6 +4090,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4139,6 +4145,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4193,6 +4200,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4254,6 +4262,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4327,6 +4336,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.eq(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     // ε₀[2] = ω^ω, so epsilonate(x,2) = x{ω^ω}x = iterate(x,x) exactly (the
     // same value itermult(x,2) produces — x{ε₀}2 = x{ω^ω+1}2).
@@ -5699,6 +5709,24 @@
         innerS.layer = (innerS.layer || 0) + 1;
         if (negateIt) innerS.sign = -1;
         return innerS.normalize();
+      }
+
+      // !Aaα with a real (non-integer) α — the README ω^ω diagonal.
+      // Decision 1B: !Aaα ≡ A(a×⌊α⌋)(α), i.e. the letter token carrying ⌊α⌋
+      // lowercase a's applied at argument α. This keeps the integer anchors
+      // (!Aan = A(a×n)(n)) and extends them continuously inside each unit
+      // interval (e.g. !Aa1.5 = Aa1.5, !Aa2.5 = Aaa2.5). Must run before the
+      // mantissa-based diagBinMatch block: "!Aa1.5" has no mantissa in front.
+      var bangAaMatch = rem.match(/^!Aa(\d+\.\d+)$/);
+      if (bangAaMatch) {
+        var baA = Number(bangAaMatch[1]);
+        if (isFinite(baA) && baA > 0) {
+          var baN = Math.max(1, Math.floor(baA));
+          var baTok = "A" + new Array(baN + 1).join("a");
+          var baVal = Q.fromString(baTok + String(baA));
+          if (negateIt) baVal.sign = -1;
+          return baVal;
+        }
       }
 
       // Canonical diagonal-letter output "mantissa LETTER β" where LETTER is

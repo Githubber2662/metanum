@@ -104,6 +104,41 @@ console.log("\n=== D04 format repeated-letter chains ===");
 })();
 
 // ─────────────────────────────────────────────────────────────
+// D05 · !Aaα with real α (notation-semantics decision 1B)
+// ─────────────────────────────────────────────────────────────
+console.log("\n=== D05 !Aa(real alpha) ===");
+(function () {
+  ok("!Aa0.5 != 0", MetaNum("!Aa0.5").neq(0), MetaNum("!Aa0.5").toString());
+  ok("!Aa1.5 != 0", MetaNum("!Aa1.5").neq(0), MetaNum("!Aa1.5").toString());
+  ok("!Aa2.5 != 0", MetaNum("!Aa2.5").neq(0), MetaNum("!Aa2.5").toString());
+  ok("!Aa1.5 === Aa1.5", MetaNum("!Aa1.5").eq(MetaNum("Aa1.5")));
+  ok("!Aa2.5 === Aaa2.5", MetaNum("!Aa2.5").eq(MetaNum("Aaa2.5")));
+  ok("!Aa1 < !Aa1.5 < !Aa2 < !Aa2.5 < !Aa3",
+    MetaNum("!Aa1").lt(MetaNum("!Aa1.5")) && MetaNum("!Aa1.5").lt(MetaNum("!Aa2")) &&
+    MetaNum("!Aa2").lt(MetaNum("!Aa2.5")) && MetaNum("!Aa2.5").lt(MetaNum("!Aa3")));
+  // integer path must not regress
+  ok("!Aa1 === Aa1", MetaNum("!Aa1").eq(MetaNum("Aa1")));
+  ok("!Aa2 === Aaa2", MetaNum("!Aa2").eq(MetaNum("Aaa2")));
+  ok("!Aa5 === Aaaaaa5", MetaNum("!Aa5").eq(MetaNum("Aaaaaa5")));
+  ok("!Aa10 === Aaaaaaaaaaa10", MetaNum("!Aa10").eq(MetaNum("Aaaaaaaaaaa10")));
+})();
+
+// ─────────────────────────────────────────────────────────────
+// D07 · 2{λ}2 = 4 (notation-semantics §3, rule 3)
+// ─────────────────────────────────────────────────────────────
+console.log("\n=== D07 2{lambda}2 ===");
+(function () {
+  var ops = ["aperionate", "iter", "itermult", "cuboiter", "expoiter",
+             "trioterate", "trixxate", "aperixxate", "epsilonate"];
+  ops.forEach(function (op) {
+    var v = new MetaNum(2)[op](2);
+    ok("2{" + op + "}2 === 4", v.eq(4), v.toString());
+  });
+  ok("3{ω²}1 === 3 (y=1)", new MetaNum(3).aperionate(1).eq(3));
+  ok("3{ω^ω}1 === 3 (y=1)", new MetaNum(3).trixxate(1).eq(3));
+})();
+
+// ─────────────────────────────────────────────────────────────
 console.log("\n─────────────────────────────────────────────");
 console.log("issue-17 regression: " + pass + " passed, " + fail + " failed");
 console.log("─────────────────────────────────────────────");

@@ -7,7 +7,8 @@
 | 维护 fork | <https://github.com/MarchBeta2087/metanum> |
 | 复现脚本 | [`docs/repro/issue-17.js`](repro/issue-17.js)（`node docs/repro/issue-17.js`） |
 | 回归测试 | [`test.js`](../test.js)（`npm test`）；全量套件 `npm run test:suite` |
-| 文档状态 | Phase 1（D01–D04）已修复；D05–D07 待语义规范 |
+| 文档状态 | Phase 1（D01–D04）、Phase 2（D05 + D07 部分）已修复；D06 待协同改造 |
+| 语义规范 | [`notation-semantics.md`](notation-semantics.md)（决策 1–5 已定稿） |
 
 > **Phase 1 进度（D01–D04 已修复）**：分支 `fix/issue-17-phase1`。
 > `npm test` 30 条回归全过，`npm run test:suite`（test_mixed.js）1006 PASS / 0 FAIL。
@@ -27,10 +28,10 @@
 | **D02** | `toBeaf()` 值 > MSI 时丢底数（`{10,16} → {16}`） | bug | `toBeaf` | 中（展示） | ✅ 已修复 (Phase 1) |
 | **D03** | `toBeaf()` 3+ 项 LAN 输出内部数组 dump | bug | `toBeaf` | 中（展示） | ✅ 已修复 (Phase 1) |
 | **D04** | `format()` 重复单字母折叠错误（`ZZ152416 → 1.000Z3`） | bug | `format-metanum.js` | 中（展示） | ✅ 已修复 (Phase 1) |
-| **D05** | `!Aa`（非整数 α）解析为 `0` | bug | `fromString` / 符号记法 | 低 | 待确认 |
-| **D06** | `!αAaβ`（非整数 α）解析为 `0` / 畸形 | bug | `fromString` / 符号记法 | 低 | 待确认 |
-| **D07** | `2{λ}2 ≠ 4`（λ ≥ ω^ω·2） | **SPEC + bug** | 高阶序数归约 / rule 3 | 中（正确性） | 待语义确认 |
-| **S01** | `Z`/`!Aa` 等记法的规范形未形式化 | spec gap | （文档） | — | 待写规范 |
+| **D05** | `!Aa`（非整数 α）解析为 `0` | bug | `fromString` / 符号记法 | 低 | ✅ 已修复 (Phase 2) |
+| **D06** | `!αAaβ`（非整数 α）解析为 `0` / 畸形 | bug | `fromString` / 符号记法 | 低 | ⏳ 待协同改造（规范 §2） |
+| **D07** | `2{λ}2 ≠ 4`（λ ≥ ω^ω·2） | **SPEC + bug** | 高阶序数归约 / rule 3 | 中（正确性） | ◑ 部分修复（`2{λ}2=4`） |
+| **S01** | `Z`/`!Aa` 等记法的规范形未形式化 | spec gap | （文档） | — | ✅ 已落定 (`notation-semantics.md`) |
 | **F01** | ω^ω+n … ω^(ω^ω) 的「分隔符」表示法 | feature | （新增记法） | 无 | 暂缓 |
 
 **分类定义**
@@ -180,19 +181,19 @@ MetaNum("!Aa2.5")  // array [[0]]
 
 **证据**（脚本 D05 段）。对照：整数 α 正常——`!Aa1 → Aa1`、`!Aa2 → Aaa2`、`!Aa10 → Aaaaaaaaaaa10`。
 
-**语义依据**（README「Symbol and letter notation」）：
-> `!Aaα = 10{ω^int(α)·frac(α)}10`
+**语义依据**（[`notation-semantics.md`](notation-semantics.md) §1，决策 1B）：
+> `!Aaα ≡ A(a×⌊α⌋)(α)`（α ≥ 1）
 
-因此 `!Aa1.5` 应等价于 `10{ω^1·0.5}10`，**不是 0**。
+因此 `!Aa1.5 = Aa1.5`、`!Aa2.5 = Aaa2.5`，**不是 0**。README 的 `10{ω^int(α)·frac(α)}10` 在整数处自相矛盾，已按决策 1B 重新定义（见规范 §6）。
 
-**根因假设**：符号记法的解析只处理 `int(α)`，遇到小数部分落到默认/错误分支返回 0。
+**根因**：符号记法的解析只处理整数 α，小部分落到默认分支返回 0。
 
-**验收标准**
-- [ ] `MetaNum("!Aa1.5").neq(0)`
-- [ ] `MetaNum("!Aa1.5")` 与按 README 公式手工构造的值（待规范给出构造式）一致
-- [ ] 整数 α 路径不回归
+**验收标准**（已过）
+- [x] `MetaNum("!Aa1.5").neq(0)`，且 `= Aa1.5`
+- [x] `!Aa0.5/1.5/2.5/3.5` 非零且严格单调
+- [x] 整数 α 路径不回归（`!Aa1=Aa1`、`!Aa2=Aaa2`、`!Aa5=Aaaaaa5`）
 
-**依赖**：`notation-semantics.md` §`!Aa` 需先**形式化** `int/frac` 的拆分与小数部分落入序数的方式。
+**已修复**（`fromString` 新增 `!Aa<real>` 分支）。
 
 ---
 
@@ -212,10 +213,12 @@ MetaNum("!2.5Aa4")  // toString "! [1] [2.5,4]"，layer 1（畸形）
 
 对照 `!2.0000Aa4` 可解析（`Aaaaa4`）。
 
-**验收标准**
+**状态**：⏳ **待协同改造**。规范 §2 已给出精确公式 `!αAaβ = !Aa(β+log₅(α/2))`，并确认：现有 compact row（`[[1],[α,β]]`）与公式不等价，且 `!1.5Aa4` / `!1Aa1.5` 仍返回 0。直接改 parser 会破坏 `format` 往返，需 parser + formatter 一并改。
+
+**验收标准**（D06 完成后）
 - [ ] `!αAaβ`（α 为一般实数）不再返回 0 / 畸形
-- [ ] 与 `!Aa(β+logα)` 的换算一致（待规范给出精确公式）
-- [ ] `!2.0000Aa4` 对照组不回归
+- [ ] 与 `!Aa(β+log₅(α/2))` 的换算一致（见规范 §2）
+- [ ] `format` 往返一致；`!2.0000Aa4` 对照组不回归
 
 **依赖**：同 D05，需 `notation-semantics.md`。
 
@@ -250,11 +253,13 @@ new MetaNum(2).aperixxate(2)   // 2{ω^(ω^ω)}2   → 2ε1    ✗
 **期望**：`2{λ}2 = 4` 对所有序数 λ 成立；`2{λ}1 = 2`；`n{λ}1 = n`。
 
 **验收标准**
-- [ ] `x.iter(2)/cuboiter(2)/expoiter(2)/trioterate(2)/trixxate(2)/aperixxate(2)`（x=2）全 = 4
-- [ ] `x.{各层}(2)` 对 x=3,4,5 分别 = x²
-- [ ] `x.{各层}(1) = x`
-- [ ] 现有 `2{ω^2}2`、`2{ω^ω}2` 结果不回归
+- [x] `2{λ}2 = 4`（`iter/itermult/cuboiter/expoiter/trioterate/trixxate/aperixxate/epsilonate`，Phase 2 快速路径）
+- [ ] `x.{各层}(2)` 对 x=3,4,5 分别 = x²  ← **已作废**：与 rule 3 矛盾（`3{ω}2=3{2}3=3↑↑3`）。正确判定见规范 §3
+- [x] `x.{各层}(1) = x`
+- [x] 现有 `2{ω^2}2`、`2{ω^ω}2` 结果不回归
 - [ ] 序数层单调：`x{λ}2` 对 λ 单调不降
+
+**本阶段范围**：仅加了 `x=2,y=2` 的正确快速路径；marker 方法的**通用精确级联**仍未做（依赖规范 §3 的 `λ[b]`），待后续。
 
 **依赖**：需在 `notation-semantics.md` 中先**形式化基数列 `λ[b]`**（尤其 `b=2` 与极限序数），
 并明确 `2{λ}2` 的定义路径，否则无法判定修复是否"正确"。
