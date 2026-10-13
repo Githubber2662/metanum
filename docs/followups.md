@@ -5,7 +5,7 @@
 | 来源 | Phase 1/2 + A1 + B2-a 收尾时登记的残余（D01–D07 主体已修复） |
 | 基线 | fork `fix/issue-17-phase1` @ `8643ee6` |
 | 关联 | [`issue-17-defects.md`](issue-17-defects.md)、[`notation-semantics.md`](notation-semantics.md)、[`d07-engine-design.md`](d07-engine-design.md) |
-| 状态 | 待排期 |
+| 状态 | 待排期（上游 issue #19–#24） |
 
 > 每一项给出：现象 / 位置 / 影响 / 验收 / 依赖 / 优先级。
 > 优先级：**P1** 阻断（无）、**P2** 正确性、**P3** 显示一致性、**P4** 文档/特性。
@@ -13,6 +13,8 @@
 ---
 
 ## FU-01 · `@`/`#`/更高符号层未对齐决策 1B，且不往返（P3）
+
+> 上游 issue：https://github.com/dlsdl/metanum/issues/19
 
 **现象**（实测）
 
@@ -33,6 +35,8 @@ format(MetaNum("!Aa3"))  === "!2.000Aa3"      // 已对齐（anchor-B），往�
 ---
 
 ## FU-02 · 对角字母小参数 / 低精度 mantissa 不往返（P3）
+
+> 上游 issue：https://github.com/dlsdl/metanum/issues/20
 
 **现象**（实测）
 
@@ -55,6 +59,8 @@ parser 反推 `x = β + log₅(α/2)` 有浮点误差；或形状未被 `formatB
 
 ## FU-03 · `toBeaf()` 次单位与负号丢失（P3）
 
+> 上游 issue：https://github.com/dlsdl/metanum/issues/21
+
 **现象**（实测）
 
 ```
@@ -74,6 +80,8 @@ MetaNum(-5).toBeaf()        === "{5}"     // 负号丢失
 
 ## FU-04 · B2-b..d：`ω^ω` 层 `x≥3` 精确化（P2，但建议不做）
 
+> 上游 issue：https://github.com/dlsdl/metanum/issues/22
+
 **现象**：`3{ω^ω·2}2 = 3{ω^ω+ω²}3` 等精确级联未实现，marker 为渐近近似。
 **位置**：`metanum.js` marker 方法（`cuboiter` 及以上）。
 **结论**（`d07-engine-design.md` §7）：精确值超出可表示范围，**不建议实现**。
@@ -83,6 +91,8 @@ MetaNum(-5).toBeaf()        === "{5}"     // 负号丢失
 ---
 
 ## FU-05 · README 四处矛盾勘误（P4）
+
+> 上游 issue：https://github.com/dlsdl/metanum/issues/23
 
 **现象**：README 与规范/实现不一致（已在 `notation-semantics.md` §6 记录）：
 
@@ -96,6 +106,8 @@ MetaNum(-5).toBeaf()        === "{5}"     // 负号丢失
 ---
 
 ## FU-06 · F01 分隔符记法（P4，特性）
+
+> 上游 issue：https://github.com/dlsdl/metanum/issues/24
 
 **现象**：issue #17 末尾提议用分隔符表示 `ω^ω+n … ω^(ω^ω)`。
 **状态**：新增记法，非缺陷；待 B2 语义稳定后单独评估。**建议单开 issue。**
