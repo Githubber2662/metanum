@@ -1247,7 +1247,12 @@
       var powVal = Math.pow(x.toNumber(), other.toNumber());
       if (Number.isFinite(powVal) && Math.abs(powVal) <= MAX_SAFE_INTEGER && powVal !== 0) return new MetaNum(powVal);
     }
-    if (x.eq(MetaNum.TEN) && !isSmall(other)) {
+    // 10^e fast path. Only for POSITIVE exponents: `other` stores its
+    // magnitude in r0 with the sign held separately, so a negative exponent
+    // (-324 → array [[324]], sign -1) must NOT be turned into 10^(+324) here.
+    // Negative exponents fall through to the log/normalise path below, which
+    // yields the sub-unit encoding (sign 2 / -2).
+    if (x.eq(MetaNum.TEN) && !isSmall(other) && other.sign === 1) {
       if (other.layer > 0 || other.array.length > 1) return other;
       var newRow0 = other.array[0].slice(0);
       newRow0[1] = (newRow0[1] || 0) + 1;
@@ -1380,6 +1385,14 @@
       // log10(0.5) must read 0.5, not the stored 2.
       var lv = Math.log10(magnitudeOf(this));
       if (Number.isFinite(lv)) return new MetaNum(lv);
+    }
+    // Sub-unit E-form: sign 2/-2 with an r0 longer than 1 stores the
+    // RECIPROCAL (e.g. 10^-324 → [[324,1]] sign 2). log10(1/|x|) = -log10(|x|),
+    // and rec() unwraps the reciprocal back to the magnitude. Without this,
+    // log10(10^-324) returned +324, so 10^-324 · 10^324 became 10^648.
+    if (this.sign === 2 &&
+        this.layer === 0 && this.array.length === 1 && this.array[0].length > 1) {
+      return this.rec().log10().neg();
     }
     if (this.layer === 0 && this.array.length === 1 && this.array[0].length > 1) {
       var r0 = this.array[0];
@@ -3021,6 +3034,8 @@
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
     if (cf.length === 0) return x.mul(y); // rule 1: x{0}y = x*y
+    // B2-a: base-2 infinite-level collapse (see _hyperopFromOrdinal).
+    if (x.eq(2) && y.isint() && y.gte(2) && coeffsHaveOmegaPart(cf)) return new MetaNum(4);
 
     if (!coeffsHaveOmegaPart(cf)) {
       // finite level: arrow() handles both small and huge operands
@@ -3092,6 +3107,9 @@
 
     var cf0 = trimCoeffs((coeffs || []).slice());
     if (cf0.length === 0) return x.mul(y); // rule 1: x{0}y = x*y
+    // B2-a: for base 2 every infinite level collapses (rule 3 turns the
+    // argument into 2; 2{...}2 = 2{2}2 = 4). Finite levels are excluded.
+    if (x.eq(2) && y.isint() && y.gte(2) && coeffsHaveOmegaPart(cf0)) return new MetaNum(4);
     // Fractional level coefficients come from a fundamental sequence taken at a
     // non-integer index.  On the diagonal ω = x, so ω^(k)·(c+f) = ω^(k)·c +
     // ω^(k-1)·(x·f) — resolve top-down until only the constant term can still be
@@ -3824,6 +3842,11 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    // rule 3 collapses x{λ}y to x{λ[y]}x; for x=2 the argument becomes 2 and
+    // every further FS/successor step keeps it there, so the cascade ends at
+    // 2{...}2 = 2{2}2 = 4 for ANY limit/successor level λ and integer y >= 2
+    // (issue #17 D07/B2-a). Finite levels are excluded (2{1}3 = 8).
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
 
     // iterate(x,y) = x{ω^ω}y. Rule 3 with the fundamental sequence
@@ -3946,6 +3969,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4011,6 +4035,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4072,6 +4097,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4126,6 +4152,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4180,6 +4207,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4241,6 +4269,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     var yc = metaFiniteCount(y);
     if (yc <= MAX_SAFE_INTEGER) {
@@ -4314,6 +4343,7 @@
     if (x.isNaN() || y.isNaN()) return MetaNum.NaN.clone();
     if (x.eq(MetaNum.ONE)) return MetaNum.ONE.clone();
     if (y.eq(MetaNum.ONE)) return x.clone();
+    if (x.eq(2) && y.isint() && y.gte(2)) return new MetaNum(4);
     if (y.lte(MetaNum.ZERO)) return MetaNum.NaN.clone();
     // ε₀[2] = ω^ω, so epsilonate(x,2) = x{ω^ω}x = iterate(x,x) exactly (the
     // same value itermult(x,2) produces — x{ε₀}2 = x{ω^ω+1}2).
@@ -5688,6 +5718,58 @@
         return innerS.normalize();
       }
 
+      // !Aaα with a real (non-integer) α — the README ω^ω diagonal.
+      // Decision 1B: !Aaα ≡ A(a×⌊α⌋)(α), i.e. the letter token carrying ⌊α⌋
+      // lowercase a's applied at argument α. This keeps the integer anchors
+      // (!Aan = A(a×n)(n)) and extends them continuously inside each unit
+      // interval (e.g. !Aa1.5 = Aa1.5, !Aa2.5 = Aaa2.5). Must run before the
+      // mantissa-based diagBinMatch block: "!Aa1.5" has no mantissa in front.
+      var bangAaMatch = rem.match(/^!Aa(\d+\.\d+)$/);
+      if (bangAaMatch) {
+        var baA = Number(bangAaMatch[1]);
+        if (isFinite(baA) && baA > 0) {
+          var baN = Math.max(1, Math.floor(baA));
+          var baTok = "A" + new Array(baN + 1).join("a");
+          var baVal = Q.fromString(baTok + String(baA));
+          if (negateIt) baVal.sign = -1;
+          return baVal;
+        }
+      }
+
+      // !αAaβ binary diagonal (notation-semantics §2, decision 1B):
+      //   !αAaβ = !Aa(β + log₅(α/2))
+      // Built as the de-layered instance A(a×⌊x⌋)(x) when the row fits
+      // maxCols, otherwise the layer-1 marker. Must run before diagBinMatch so
+      // the α≠2 diagonal case stops using the lossy compact row.
+      // α = 1.000 (the legacy "no mantissa" spelling) is left to the existing
+      // 1.0+-strip below, but α = 1 without decimals follows the formula.
+      var aaBinMatch = rem.match(/^!(\d+(?:\.\d+)?)Aa(\d+(?:\.\d+)?(?:[Ee]\d+)?)$/);
+      if (aaBinMatch) {
+        var aaMant = Number(aaBinMatch[1]);
+        var aaBeta = Number(aaBinMatch[2]);
+        var aaSkipLegacy = (aaMant === 1 && aaBinMatch[1].indexOf('.') >= 0);
+        if (!aaSkipLegacy && isFinite(aaMant) && aaMant > 0 &&
+            isFinite(aaBeta) && aaBeta >= 0) {
+          var aaX = aaBeta + Math.log(aaMant / 2) / Math.log(5);
+          var aaK = Math.max(1, Math.floor(aaX));
+          var aaVal = new MetaNum();
+          if (aaX >= 1 && aaK + 2 <= MetaNum.maxCols) {
+            var aaRow = [1];
+            for (var ai = 0; ai < aaK; ai++) aaRow.push(0);
+            aaRow.push(1);
+            aaVal.array = [[aaX], aaRow];
+            aaVal.layer = 0;
+          } else {
+            aaVal.array = [[aaX], [1, 0, 1]];
+            aaVal.layer = (aaX >= 1) ? 1 : 0;
+          }
+          aaVal.sign = 1;
+          aaVal.normalize();
+          if (negateIt) aaVal.sign = -1;
+          return aaVal;
+        }
+      }
+
       // Canonical diagonal-letter output "mantissa LETTER β" where LETTER is
       // any multi-letter token ending in 'a' (Aa, Ba, Aaa, Aaaa, …), with the
       // dlsdl diagonal mantissa α ∈ [2,10):
@@ -6516,41 +6598,38 @@
     return Q.BEAF.apply(null, args);
   };
 
+  // Build the error thrown when a value has no faithful BEAF text form.
+  function unrepresentableToBeaf(x) {
+    var err = new Error(metaNumError + 'toBeaf: value has no BEAF representation ' +
+      '(multi-row / layered internal form cannot be encoded as {a,b,...})');
+    err.name = 'MetaNumUnrepresentableError';
+    err.code = 'METANUM_UNREPRESENTABLE';
+    return err;
+  }
+
   // Convert to BEAF string: {a,b,c,...}
   P.toBeaf = function() {
     var x = this.clone().normalize();
     if (x.isNaN()) return 'NaN';
     if (x.layer === 0 && x.array.length === 1) {
       if (x.eq(MetaNum.ZERO)) return '{0}';
-      return '{' + decimalPlaces(x.array[0][0], 6) + '}';
-    }
-    if (x.layer > 0 || x.array.length > 1) {
-      if (x.array.length === 2 && x.array[1].length >= 3) {
-        var row = x.array[1];
-        var diag = row[row.length - 1];
-        if (diag === 1 && row[0] === 1) {
-          var vals = row.slice(1, row.length - 1);
-          var allNonNegative = true;
-          for (var i = 0; i < vals.length; i++) {
-            if (vals[i] < 0) { allNonNegative = false; break; }
-          }
-          if (allNonNegative) {
-            var a = decimalPlaces(x.array[0][0], 6);
-            // Reconstruct BEAF: {a, ?, c, d, e, ...} from ordinal row [1, c, d, e, ..., 1]
-            // (issues.md convention: BEAF(a,b,c,d,...) = a{...+ω*(d-1)+c}b)
-            var beafParts = [a, '?'];
-            for (var i = 0; i < vals.length; i++) {
-              beafParts.push(String(vals[i]));
-            }
-            beafParts.push(String(diag));
-            return '{' + beafParts.join(', ') + '}';
-          }
-        }
+      var r0 = x.array[0];
+      // [e, 1] is exactly 10^e = BEAF {10, e}. Keep the base instead of
+      // dropping it and emitting the bare exponent (issue #17 D02:
+      // BEAF(10,16) used to come back as "{16}"). Only a positive value with a
+      // round-trippable argument (e >= 1) is encoded this way; everything else
+      // keeps the historical decimal approximation of the leading term.
+      if (x.sign === 1 && r0.length === 2 && r0[1] === 1 &&
+          typeof r0[0] === 'number' && isFinite(r0[0]) && r0[0] >= 1) {
+        return '{10, ' + decimalPlaces(r0[0], 6) + '}';
       }
+      return '{' + decimalPlaces(r0[0], 6) + '}';
     }
-    return '{' + x.array.map(function(r) {
-      return '[' + r.map(function(v) { return decimalPlaces(v, 6); }).join(', ') + ']';
-    }).join(', ') + '}';
+    // A multi-row / layered value has no faithful BEAF text: the ordinal-row
+    // form does not determine the BEAF iteration count `b`, and dumping the
+    // internal rows is never acceptable output (issue #17 D03). Fail loudly
+    // instead of emitting `[...]` literals or a placeholder `?` argument.
+    throw unrepresentableToBeaf(x);
   };
 
 

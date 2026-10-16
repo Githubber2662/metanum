@@ -630,6 +630,26 @@ function formatR0ArgStr(argStr) {
     return null
 }
 
+// De-layered !Aa x instance (decision 1B): the shape [[x],[1,0×k,1]] with
+// k = floor(x), x >= 2.  Display it as the binary form !αAaβ where
+// β = floor(x) and α = 2·5^(x−β) (README α=2·5^f convention), which parses
+// back to the same value.  Returns null for every other shape so the general
+// ordinal/layer machinery keeps handling it.
+function formatBangAaValue(num, precision) {
+    if (num.sign !== 1 || num.layer !== 0) return null
+    let a = num.array
+    if (a.length !== 2 || a[0].length !== 1) return null
+    let x = a[0][0]
+    if (typeof x !== 'number' || !isFinite(x) || x < 2) return null
+    let row = a[1]
+    if (row.length < 3 || row[0] !== 1 || row[row.length - 1] !== 1) return null
+    for (let i = 1; i < row.length - 1; i++) if (row[i] !== 0) return null
+    if (row.length - 2 !== Math.floor(x)) return null
+    let beta = Math.floor(x)
+    let mant = 2 * Math.pow(5, x - beta)
+    return "!" + regularFormat(mant, precision) + "Aa" + formatR0Arg(beta, precision)
+}
+
 function format(num, precision=3, small=false) {
     if (MetaNum.isNaN(num)) return "NaN"
     let sciSigDigits = FORMAT_OPTIONS.sciSignificantDigits // for E notation
@@ -795,6 +815,8 @@ function format(num, precision=3, small=false) {
     // ── Handle ordinal rows (Aa, Ab, ..., Aaa, ... range) ──
     let hasOrdinalRows = array.length > 1
     if (hasOrdinalRows) {
+        let bang = formatBangAaValue(num, multiPrecision)
+        if (bang !== null) return bang
         return formatOrdinal(num, precision, multiPrecision)
     }
 
@@ -1495,6 +1517,26 @@ function formatFiniteRowChain(r0, finiteRows, precision) {
         }
     }
 
+    // ── Repeated top letter over a dominant lower level ──
+    // When the top row is only a prefix (count ≤ threshold) but a lower row
+    // holds the real argument, polarizeFiniteChain collapses the whole chain
+    // and the top argument degenerates to a tiny count: ZZ152416 used to read
+    // "1.000Z3".  Spell the top row as prefix letters and format the remaining
+    // chain on its own, which keeps the real argument
+    // (ZZ152416 → "Z1.000Z152,416", matching the AaAa300 → "Aa1.000Aa300" law).
+    let topRow = finiteRows[finiteRows.length - 1]
+    if (finiteRows.length >= 2 && topRow && topRow[1] === topLv &&
+        Number.isInteger(topRow[0]) && topRow[0] >= 1 && topRow[0] <= effThreshold) {
+        let restR0 = r0.slice(0)
+        for (let i = 0; i < finiteRows.length - 1; i++) {
+            let r = finiteRows[i]
+            while (restR0.length <= r[1]) restR0.push(0)
+            restR0[r[1]] = r[0]
+        }
+        let innerStr = formatR0AsChain(restR0, precision)
+        if (innerStr) return letterName(topLv).repeat(topRow[0]) + innerStr
+    }
+
     // fallback: single binary at the top letter
     let polF = polarizeFiniteChain(r0, finiteRows)
     if (polF && isFinite(polF.bottom) && polF.bottom >= 1) {
@@ -1650,13 +1692,11 @@ function formatOrdinal(num, precision, precision4) {
             } else {
                 // Single DIAGONAL letter (the row ends in 'a': Aa, Aaa,
                 // Ba, …): pure dlsdl convention α=2·5^f ∈ [2,10).
-                //  - symbol-de-layered row (base == #zeros, e.g. !Aa3): the
-                //    base is the LETTER INDEX, argument is fixed 10
-                //    (!Aa3 -> 2.000Aaaa10)
-                //  - ordinary letter application: base is the argument β
-                //    (Aa100 -> 2.000Aa100)
+                // Decision 1B: the base is the ARGUMENT β (the row zero count
+                // encodes the letter level). !Aa3 = Aaaa3 therefore reads
+                // "2.000Aaaa3" — not the historical anchor-A "2.000Aaaa10".
                 let diagMant = 2 * Math.pow(5, base - Math.floor(base))
-                let diagBeta = (base === aaZeroCount) ? 10 : top
+                let diagBeta = top
                 // multiLetterLimit symbol carry: A + aaZeroCount a's is
                 // aaZeroCount+1 letters — past the limit the diagonal reads as
                 // one more symbol with the SINGLE letter of the finite level

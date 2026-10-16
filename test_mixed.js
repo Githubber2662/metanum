@@ -2227,8 +2227,9 @@ checkFormat("10{100}(10{93}10) → 2.002Aa100",
   MetaNum.arrow(10, 100, MetaNum.arrow(10, 93, 10)), "2.002Aa100");
 // non-diagonal letters keep the [1,10) convention
 checkFormat("Ab100 → 1.000Ab100", MetaNum("Ab100"), "1.000Ab100");
-// symbol de-layering
-checkFormat("!Aa3 → 2.000Aaaa10", MetaNum("!Aa3"), "2.000Aaaa10");
+// symbol de-layering (decision 1B: base is the argument, display is the
+// binary form !αAaβ; !Aa3 = Aaaa3 = 10{ω³}3)
+checkFormat("!Aa3 → !2.000Aa3", MetaNum("!Aa3"), "!2.000Aa3");
 checkFormat("@Aa3 → !2.000Aaaa10", MetaNum("@Aa3"), "!2.000Aaaa10");
 // parser roundtrip of the new canonical forms
 checkBool("parse 2.000Aaaa10", MetaNum("2.000Aaaa10").format() === "2.000Aaaa10", true);
